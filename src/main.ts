@@ -1,7 +1,7 @@
 import './style.css';
 import {
   canUseAbility, inBounds, randomFleet, sameCell, shipAt, shipCells, validateAction, validateFleet, SHIPS, SHIP_TYPES,
-  type Action, type Cell, type Dir, type Fleet, type PlayerId, type ShipType, type TurnRecord,
+  type Action, type Cell, type Dir, type Fleet, type GameState, type PlayerId, type ShipType, type TurnRecord,
 } from './engine';
 import { Match, ME, THEM } from './game/match';
 import { aim, type Mode } from './game/targeting';
@@ -33,6 +33,7 @@ let dir: Dir = 'h';
 let salvoFirst: Cell | null = null;
 let busy = false;
 let acting: PlayerId | null = null; // whose turn is animating; the state has already moved on
+let shown: GameState | null = null; // state as the player has seen it, so the HUD doesn't spoil a shot in flight
 // Shared
 let pointed: Cell | null = null; // cell under the pointer on the active board
 let view: View = 'overview';
@@ -144,7 +145,8 @@ async function playRecord(record: TurnRecord) {
   acting = record.attacker;
   render();
   await scene.playTurn(record, byMe);
-  scene.sync(match!.state, match!.fleet);
+  shown = match!.state;
+  scene.sync(shown, match!.fleet);
   // Keep our result on screen under the enemy's reply so it isn't missed.
   status = byMe ? describeTurn(record, true) : `${status}\n${describeTurn(record, false)}`;
   render();
@@ -218,6 +220,7 @@ function onButton(act: string) {
     case 'start':
       if (held || validateFleet(fleet)) return;
       match = new Match(fleet, aiBot());
+      shown = match.state;
       scene.mine.setPreview([]);
       screen = 'battle';
       status = 'Pick a target on the enemy grid.';
@@ -234,7 +237,7 @@ function banner(): Pick<HudView, 'banner' | 'bannerTone'> {
   if (screen === 'placing') return { banner: 'Deploy your fleet', bannerTone: 'green' };
   const state = match?.state;
   if (!state) return { banner: '', bannerTone: 'green' };
-  if (state.winner !== null) return state.winner === ME ? { banner: 'Victory', bannerTone: 'green' } : { banner: 'Defeat', bannerTone: 'red' };
+  if (shown && shown.winner !== null) return shown.winner === ME ? { banner: 'Victory', bannerTone: 'green' } : { banner: 'Defeat', bannerTone: 'red' };
   const turn = busy ? acting ?? state.turn : state.turn;
   if (turn === THEM) return { banner: 'Enemy turn', bannerTone: 'red' };
   return { banner: busy ? 'Firing' : `Your turn · ${Math.floor(state.log.length / 2) + 1}`, bannerTone: 'amber' };
@@ -243,7 +246,7 @@ function banner(): Pick<HudView, 'banner' | 'bannerTone'> {
 function render() {
   const state = match?.state;
   const fleetStatus = (player: PlayerId) =>
-    SHIP_TYPES.map((type) => ({ type, sunk: state!.players[player].sunk.some((s) => s.type === type) }));
+    SHIP_TYPES.map((type) => ({ type, sunk: shown!.players[player].sunk.some((s) => s.type === type) }));
   hud.render({
     screen,
     howTo,
@@ -253,7 +256,7 @@ function render() {
     canStart: !held && validateFleet(fleet) === null,
     showRotate: mode === 'airstrike',
     viewLabel: view === 'mine' ? 'Enemy grid' : 'My fleet',
-    fleets: state ? { mine: fleetStatus(ME), enemy: fleetStatus(THEM) } : null,
+    fleets: state && shown ? { mine: fleetStatus(ME), enemy: fleetStatus(THEM) } : null,
     result: state && state.winner !== null ? { won: state.winner === ME, mine: statsFor(state, ME), enemy: statsFor(state, THEM) } : null,
     abilities: !state ? [] : [
       { mode: 'shot', ready: myTurn(), cooldown: 0, lost: false },

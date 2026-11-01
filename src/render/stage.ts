@@ -3,13 +3,16 @@ import { THEME } from './theme';
 
 // Portrait screens have height to spare, so look down more steeply and fill the width.
 const PITCH = { landscape: THREE.MathUtils.degToRad(55), portrait: THREE.MathUtils.degToRad(68) };
+/** Capped so phones with 3x screens don't render 9x the pixels. */
+export const PIXEL_RATIO = Math.min(devicePixelRatio, 2);
+
 const VIEW_RADIUS = { landscape: 7.2, portrait: 6.3 }; // half a board plus room for labels and the HUD
 
 export interface Stage {
   scene: THREE.Scene;
   onFrame(cb: (dt: number, time: number) => void): void;
-  /** Glide the camera over the point at `x`; `zoom` > 1 pulls back. */
-  focusOn(x: number, zoom?: number): void;
+  /** Glide the camera over the point at `x`; `zoom` > 1 pulls back; `pitch` (radians) overrides the layout's tilt. */
+  focusOn(x: number, zoom?: number, pitch?: number): void;
   /** Shake the camera; strength decays over about half a second. */
   shake(strength: number): void;
   /** Raycaster through the pointer position. */
@@ -18,11 +21,10 @@ export interface Stage {
 
 export function createStage(canvas: HTMLCanvasElement): Stage {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setPixelRatio(PIXEL_RATIO);
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(THEME.sky);
-  scene.fog = new THREE.Fog(THEME.sky, 30, 75);
+  scene.fog = new THREE.Fog(THEME.horizon, 30, 80); // the sky dome covers the background
   scene.add(new THREE.HemisphereLight(0xcfe8ff, 0x0b1a2b, 1.3));
   const sun = new THREE.DirectionalLight(0xfff1d6, 1.8);
   sun.position.set(6, 14, 8);
@@ -35,11 +37,14 @@ export function createStage(canvas: HTMLCanvasElement): Stage {
   const base = new THREE.Vector3(); // camera position before shake
   let distance = 20;
   let zoom = 1;
-  let pitch = PITCH.landscape;
+  let layoutPitch = PITCH.landscape;
+  let pitchOverride: number | undefined;
   let shakeStrength = 0;
 
-  const placeGoal = () =>
+  const placeGoal = () => {
+    const pitch = pitchOverride ?? layoutPitch;
     goal.set(lookGoal.x, distance * zoom * Math.sin(pitch), lookGoal.z + distance * zoom * Math.cos(pitch));
+  };
 
   function resize() {
     renderer.setSize(innerWidth, innerHeight);
@@ -47,7 +52,7 @@ export function createStage(canvas: HTMLCanvasElement): Stage {
     camera.updateProjectionMatrix();
     const layout = camera.aspect < 1 ? 'portrait' : 'landscape';
     const tanHalf = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-    pitch = PITCH[layout];
+    layoutPitch = PITCH[layout];
     distance = VIEW_RADIUS[layout] / (tanHalf * Math.min(camera.aspect, 1));
     placeGoal();
   }
@@ -78,9 +83,10 @@ export function createStage(canvas: HTMLCanvasElement): Stage {
   return {
     scene,
     onFrame: (cb) => void callbacks.push(cb),
-    focusOn(x, nextZoom = 1) {
+    focusOn(x, nextZoom = 1, pitch) {
       lookGoal.x = x;
       zoom = nextZoom;
+      pitchOverride = pitch;
       placeGoal();
     },
     shake(strength) {

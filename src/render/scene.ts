@@ -1,16 +1,18 @@
 import * as THREE from 'three';
-import { BOARD_SIZE, type Cell, type Fleet, type GameState, type TurnRecord } from '../engine';
+import { BOARD_SIZE, SHIP_TYPES, type Cell, type Fleet, type GameState, type ShipType, type TurnRecord } from '../engine';
 import { ME, THEM } from '../game/match';
 import { Board3D } from './board3d';
 import { Effects } from './effects';
-import { createOcean } from './ocean';
 import { createStage, type Stage } from './stage';
-import { THEME } from './theme';
+import { createAmbient } from './ambient';
+import { SUN_DIRECTION, THEME } from './theme';
+import { createWater } from './water';
 
 export type View = 'mine' | 'enemy' | 'overview';
 
 const BOARD_OFFSET = 7; // boards sit at x = ±7
-const OVERVIEW_ZOOM = 1.7;
+const OVERVIEW_ZOOM = 1.5;
+const OVERVIEW_PITCH = THREE.MathUtils.degToRad(24);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Everything 3D: both boards, the sea, effects and the camera. */
@@ -19,23 +21,28 @@ export class SeaScene {
   readonly enemy: Board3D;
   private readonly stage: Stage;
   private readonly effects: Effects;
+  private afloat: ShipType[] = []; // our ships still in the fight, for picking which one fires
 
   constructor(canvas: HTMLCanvasElement) {
     this.stage = createStage(canvas);
-    const animateOcean = createOcean(this.stage.scene);
+    const sun = new THREE.Vector3(SUN_DIRECTION.x, SUN_DIRECTION.y, SUN_DIRECTION.z);
+    const animateWater = createWater(this.stage.scene, sun);
+    const animateAmbient = createAmbient(this.stage.scene, sun);
     this.effects = new Effects(this.stage.scene);
     this.mine = new Board3D(this.stage.scene, -BOARD_OFFSET, THEME.myBoard);
     this.enemy = new Board3D(this.stage.scene, BOARD_OFFSET, THEME.enemyBoard);
     this.stage.onFrame((dt, t) => {
-      animateOcean(t);
+      animateWater(t);
+      animateAmbient(dt, t);
       this.effects.update(dt);
-      this.mine.update(dt);
-      this.enemy.update(dt);
+      this.mine.update(dt, t);
+      this.enemy.update(dt, t);
     });
   }
 
   focus(view: View): void {
-    if (view === 'overview') this.stage.focusOn(0, OVERVIEW_ZOOM);
+    // The title view looks across the water so the horizon and sunset show behind the menu.
+    if (view === 'overview') this.stage.focusOn(0, OVERVIEW_ZOOM, OVERVIEW_PITCH);
     else this.stage.focusOn((view === 'mine' ? this.mine : this.enemy).centerX);
   }
 
@@ -46,6 +53,7 @@ export class SeaScene {
   /** Brings ships, markers and wrecks in line with the game state. */
   sync(state: GameState | null, fleet: Fleet): void {
     this.mine.setShips(fleet);
+    this.afloat = SHIP_TYPES.filter((t) => !state?.players[ME].sunk.some((s) => s.type === t));
     if (!state) return;
     this.mine.setMarks(state.players[ME].marks);
     this.mine.sink(state.players[ME].sunk.map((s) => s.type));
@@ -57,9 +65,10 @@ export class SeaScene {
   /** Plays a turn's flight and impacts. Resolves once everything has landed. */
   async playTurn({ action, outcome }: TurnRecord, byMe: boolean): Promise<void> {
     const target = byMe ? this.enemy : this.mine;
-    const launch = new THREE.Vector3((byMe ? this.mine : this.enemy).centerX, 1.5, 0);
+    const launch = this.launchPoint(byMe);
     const at = (c: Cell, y = 0) => target.cellPosition(c, y);
     target.setLastShot([]);
+    if (action.type !== 'torpedo') this.effects.muzzle(launch);
 
     switch (action.type) {
       case 'torpedo': {
@@ -90,6 +99,17 @@ export class SeaScene {
     if (action.type === 'radar') target.addRadar(action.center, outcome.radarCount ?? 0);
     if (outcome.scouted) target.addScout(outcome.scouted);
     target.setLastShot([...outcome.hits, ...outcome.misses]);
+  }
+
+  /** One of our surviving ships fires; enemy shells come from beyond the far edge of their grid. */
+  private launchPoint(byMe: boolean): THREE.Vector3 {
+    if (byMe) {
+      const type = this.afloat[Math.floor(Math.random() * this.afloat.length)];
+      const from = type && this.mine.shipCenter(type);
+      if (from) return from;
+    }
+    const board = byMe ? this.mine : this.enemy;
+    return board.cellPosition({ x: BOARD_SIZE / 2, y: -2 }, 0.5);
   }
 
   reset(): void {

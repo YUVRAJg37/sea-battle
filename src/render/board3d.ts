@@ -1,12 +1,13 @@
 import * as THREE from 'three';
-import { BOARD_SIZE, RADAR_RADIUS, area, inBounds, type Cell, type Fleet, type Marks, type Ship, type ShipType } from '../engine';
-import { createShip } from './ships';
+import {
+  BOARD_SIZE, RADAR_RADIUS, SHIPS, area, inBounds, key, shipCells, type Cell, type Fleet, type Marks, type Ship, type ShipType,
+} from '../engine';
+import { ShipView } from './ships';
 import { THEME } from './theme';
 
 const HALF = BOARD_SIZE / 2;
-const SINK_SECONDS = 2.2;
 
-const pegGeo = new THREE.CylinderGeometry(0.12, 0.12, 0.7, 6);
+const pegGeo = new THREE.OctahedronGeometry(0.11); // small red marker; the fire above it does the talking
 const hitMat = new THREE.MeshStandardMaterial({ color: THEME.hit, emissive: 0x7a0000, flatShading: true });
 const missGeo = new THREE.CylinderGeometry(0.16, 0.16, 0.06, 8);
 const missMat = new THREE.MeshStandardMaterial({ color: THEME.miss });
@@ -51,7 +52,7 @@ class TilePool {
 export class Board3D {
   private readonly group = new THREE.Group();
   private readonly surface: THREE.Mesh;
-  private readonly ships = new Map<ShipType, THREE.Group>();
+  private readonly ships = new Map<ShipType, ShipView>();
   private readonly shipLayer = new THREE.Group();
   private readonly markers = new THREE.Group();
   private readonly marked = new Set<string>();
@@ -62,7 +63,7 @@ export class Board3D {
     this.group.position.x = centerX;
     this.surface = new THREE.Mesh(
       new THREE.PlaneGeometry(BOARD_SIZE, BOARD_SIZE).rotateX(-Math.PI / 2),
-      new THREE.MeshStandardMaterial({ color: tint, transparent: true, opacity: 0.45 }),
+      new THREE.MeshStandardMaterial({ color: tint, transparent: true, opacity: 0.3, depthWrite: false }),
     );
     const grid = new THREE.GridHelper(BOARD_SIZE, BOARD_SIZE, THEME.grid, THEME.grid);
     grid.position.y = 0.01;
@@ -89,42 +90,41 @@ export class Board3D {
 
   /** Shows exactly these ships, keeping meshes (and their animations) for ships that didn't move. */
   setShips(fleet: Fleet): void {
-    for (const [type, mesh] of this.ships) {
-      if (!fleet.some((s) => sameShip(s, mesh.userData.ship))) {
-        this.shipLayer.remove(mesh);
+    for (const [type, view] of this.ships) {
+      if (!fleet.some((s) => sameShip(s, view.ship))) {
+        this.shipLayer.remove(view.group);
+        view.dispose();
         this.ships.delete(type);
       }
     }
     for (const ship of fleet) {
       if (this.ships.has(ship.type)) continue;
-      const mesh = createShip(ship);
-      this.ships.set(ship.type, mesh);
-      this.shipLayer.add(mesh);
+      const view = new ShipView(ship);
+      this.ships.set(ship.type, view);
+      this.shipLayer.add(view.group);
     }
+  }
+
+  /** World position of a ship's middle at deck height, if it's on this board. */
+  shipCenter(type: ShipType): THREE.Vector3 | undefined {
+    return this.ships.get(type)?.center();
   }
 
   /** Starts the sinking animation for these ships unless already started. */
   sink(types: ShipType[]): void {
-    for (const type of types) {
-      const mesh = this.ships.get(type);
-      if (mesh) mesh.userData.sink ??= 0;
-    }
+    for (const type of types) this.ships.get(type)?.sink();
   }
 
-  update(dt: number): void {
-    for (const mesh of this.ships.values()) {
-      const progress: number | undefined = mesh.userData.sink;
-      if (progress === undefined || progress >= 1) continue;
-      const next = Math.min(1, progress + dt / SINK_SECONDS);
-      const eased = 1 - (1 - next) ** 3;
-      mesh.userData.sink = next;
-      mesh.userData.body.position.y = -0.32 * eased;
-      mesh.userData.body.rotation.x = 0.35 * eased; // roll onto its side
-    }
+  update(dt: number, time: number): void {
+    for (const view of this.ships.values()) view.update(dt, time);
   }
 
-  /** Adds markers for shots not shown yet. */
+  /** Adds markers for shots not shown yet and scorches damaged ships. */
   setMarks(marks: Marks): void {
+    for (const view of this.ships.values()) {
+      const hits = shipCells(view.ship).filter((c) => marks[key(c)] === 'hit').length;
+      view.setDamage(hits / SHIPS[view.ship.type].length);
+    }
     for (const [k, result] of Object.entries(marks)) {
       if (this.marked.has(k)) continue;
       this.marked.add(k);
@@ -160,6 +160,7 @@ export class Board3D {
   }
 
   reset(): void {
+    for (const view of this.ships.values()) view.dispose();
     this.shipLayer.clear();
     this.ships.clear();
     this.markers.traverse((o) => {
