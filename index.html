@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Sea Battle</title>
+  </head>
+  <body>
+    <canvas id="view"></canvas>
+    <div id="hud">
+      <div id="status" role="status" aria-live="polite"></div>
+      <div id="panel">
+        <div id="placing">
+          <button data-act="rotate">Rotate</button>
+          <button data-act="random">Random</button>
+          <button data-act="start" id="start" class="primary">Start battle</button>
+        </div>
+        <div id="battle">
+          <div id="abilities"></div>
+          <button data-act="rotate">Rotate</button>
+          <button data-act="view" id="view-toggle"></button>
+        </div>
+        <div id="over">
+          <button data-act="again" class="primary">Play again</button>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -39,6 +39,10 @@ export function area(center: Cell, radius: number): Cell[] {
   return cells;
 }
 
+export function allCells(): Cell[] {
+  return Array.from({ length: BOARD_SIZE * BOARD_SIZE }, (_, i) => ({ x: i % BOARD_SIZE, y: Math.floor(i / BOARD_SIZE) }));
+}
+
 export function row(y: number, from: 'left' | 'right'): Cell[] {
   const cells = Array.from({ length: BOARD_SIZE }, (_, x) => ({ x, y }));
   return from === 'left' ? cells : cells.reverse();

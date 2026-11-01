@@ -4,7 +4,7 @@ Turn-based 1v1 naval combat for web and mobile, with ship abilities and peer-to-
 
 ## Status
 - [x] M1: rules engine (`src/engine`): fleet placement, shots, abilities, cooldowns, win condition, commit/reveal fair-play check
-- [ ] M2: 3D board (Three.js)
+- [x] M2: 3D board (Three.js): ship placement, aiming previews for every ability, hit/miss effects, touch controls. Plays against a placeholder random bot
 - [ ] M3: AI opponent
 - [ ] M4–M6: WebRTC multiplayer, rematch/chat, random matchmaking
 - [ ] M7: sound and polish
@@ -20,6 +20,14 @@ Using an ability replaces your shot for that turn. Lose the ship, lose the abili
 | Submarine | 3 | Torpedo: runs along a row, hits the first ship | 4 |
 | Destroyer | 2 | Scout: reveals one enemy ship cell | 5 |
 
+## Code layout
+- `src/engine/`: pure game rules, no rendering or networking (see below)
+- `src/game/`: match flow (`Match` + the `Opponent` interface a bot or remote peer implements), aiming, status text
+- `src/bot/`: computer opponents
+- `src/render/`: Three.js scene: camera, ocean, boards, ships, particle effects
+- `src/ui/`: HTML overlay (status line, buttons)
+- `src/main.ts`: wires input, match, scene and HUD together
+
 ## Engine layout
 - `config.ts`: board size, ships, ability balance
 - `grid.ts`: cells and cell shapes (line, area, row)
@@ -32,6 +40,11 @@ Using an ability replaces your shot for that turn. Lose the ship, lose the abili
 ## Develop
 ```bash
 npm install
+npm run dev      # http://localhost:5173
 npm test
 npm run typecheck
 ```
+
+## Controls
+- Placement: tap a ship to pick it up, tap water to drop it, Rotate to turn it.
+- Battle: pick Shot or an ability, then tap the enemy board. With a mouse, hover to aim and click to fire; on touch, tap to aim and tap the same cell again to fire. Rotate turns the airstrike. The torpedo launches from the side of the board nearer the tapped cell.

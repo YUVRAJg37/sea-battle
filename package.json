@@ -3,12 +3,20 @@
   "version": "1.0.0",
   "scripts": {
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview"
   },
   "type": "module",
   "devDependencies": {
+    "@types/three": "^0.187.0",
     "typescript": "^7.0.2",
+    "vite": "^8.3.5",
     "vitest": "^5.0.5"
   },
-  "private": true
+  "private": true,
+  "dependencies": {
+    "three": "^0.187.0"
+  }
 }

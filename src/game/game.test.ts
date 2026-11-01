@@ -1,0 +1,41 @@
+import { describe, expect, it } from 'vitest';
+import { allCells, key, randomFleet, seededRng, SHIP_TYPES } from '../engine';
+import { randomBot } from '../bot/randomBot';
+import { Match, THEM } from './match';
+import { aim } from './targeting';
+
+describe('aim', () => {
+  it('slides an airstrike back onto the board', () => {
+    expect(aim('airstrike', { x: 9, y: 3 }, 'h').cells).toEqual([{ x: 7, y: 3 }, { x: 8, y: 3 }, { x: 9, y: 3 }]);
+    expect(aim('airstrike', { x: 2, y: 9 }, 'v').action).toEqual({ type: 'airstrike', origin: { x: 2, y: 7 }, dir: 'v' });
+  });
+
+  it('needs two different cells for a salvo', () => {
+    const a = { x: 1, y: 1 };
+    expect(aim('salvo', a, 'h').action).toBeNull();
+    expect(aim('salvo', a, 'h', a).action).toBeNull();
+    expect(aim('salvo', { x: 2, y: 2 }, 'h', a).action).toEqual({ type: 'salvo', targets: [a, { x: 2, y: 2 }] });
+  });
+
+  it('launches a torpedo from the nearer side', () => {
+    expect(aim('torpedo', { x: 2, y: 5 }, 'h').action).toEqual({ type: 'torpedo', row: 5, from: 'left' });
+    expect(aim('torpedo', { x: 7, y: 5 }, 'h').action).toEqual({ type: 'torpedo', row: 5, from: 'right' });
+  });
+
+  it('clips radar to the board', () => {
+    expect(aim('radar', { x: 0, y: 0 }, 'h').cells).toHaveLength(4);
+  });
+});
+
+describe('match vs random bot', () => {
+  it('plays to a finish with a winner', async () => {
+    const rng = seededRng(7);
+    const match = new Match(randomFleet(rng), randomBot(rng));
+    while (match.state.winner === null) {
+      const open = allCells().filter((c) => !(key(c) in match.state.players[THEM].marks));
+      await match.play({ type: 'shot', target: open[Math.floor(rng() * open.length)]! });
+      if (match.state.winner === null) await match.opponentTurn();
+    }
+    expect(match.state.players[match.state.winner === 0 ? 1 : 0].sunk).toHaveLength(SHIP_TYPES.length);
+  });
+});
