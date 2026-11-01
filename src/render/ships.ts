@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { BOARD_SIZE, SHIPS, type Ship } from '../engine';
 import { BEAM, warshipGeometry } from './models/warships';
+import { outline, toonMaterial } from './shipMaterial';
 
 const SINK_SECONDS = 2.2;
 
@@ -29,7 +30,7 @@ function foam(): THREE.Texture {
 export class ShipView {
   readonly group = new THREE.Group();
   private readonly body: THREE.Mesh;
-  private readonly material: THREE.MeshStandardMaterial;
+  private readonly material: THREE.MeshToonMaterial;
   private readonly foamMaterial: THREE.MeshBasicMaterial;
   private readonly phase = Math.random() * Math.PI * 2;
   private damage = 0; // 0..1 share of cells hit
@@ -37,8 +38,10 @@ export class ShipView {
 
   constructor(readonly ship: Ship) {
     const length = SHIPS[ship.type].length;
-    this.material = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.75, metalness: 0.1 });
-    this.body = new THREE.Mesh(warshipGeometry(ship.type), this.material);
+    this.material = toonMaterial();
+    const geometry = warshipGeometry(ship.type, 'naval');
+    this.body = new THREE.Mesh(geometry, this.material);
+    this.body.add(outline(geometry));
     this.foamMaterial = new THREE.MeshBasicMaterial({ map: foam(), transparent: true, depthWrite: false });
     const ring = new THREE.Mesh(new THREE.PlaneGeometry(length + 0.3, BEAM[ship.type] + 0.45).rotateX(-Math.PI / 2), this.foamMaterial);
     ring.position.set(length / 2, 0.015, 0);
