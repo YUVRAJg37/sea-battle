@@ -192,7 +192,8 @@ button:focus-visible {
   background: var(--plate-hi);
 }
 
-.menu-item.primary {
+.menu-item.primary,
+.menu-item.primary:hover:not(:disabled) {
   border-left: 0;
   background: var(--amber);
   color: var(--amber-ink);
@@ -457,6 +458,12 @@ button:focus-visible {
 
 .slot.fire:not(.active) {
   background: #c99a3a;
+}
+
+/* The amber buttons stay amber on hover; only the dark plates lighten. */
+.menu-item.primary:hover:not(:disabled),
+.slot.fire:hover:not(:disabled) {
+  background: #ffd57a;
 }
 
 .slot:disabled {
