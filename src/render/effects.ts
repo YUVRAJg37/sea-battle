@@ -9,6 +9,8 @@ const shellMat = new THREE.MeshBasicMaterial({ color: 0xffe0a0 });
 const torpedoGeo = new THREE.CapsuleGeometry(0.08, 0.45, 2, 6).rotateZ(Math.PI / 2);
 const torpedoMat = new THREE.MeshStandardMaterial({ color: 0x263238 });
 const ringGeo = new THREE.RingGeometry(0.85, 1, 40).rotateX(-Math.PI / 2);
+// Open tapered tube, base at y = 0, for the water column a miss throws up.
+const columnGeo = new THREE.CylinderGeometry(0.1, 0.22, 1, 12, 1, true).translate(0, 0.5, 0);
 
 const pick = <T>(items: readonly T[]): T => items[Math.floor(Math.random() * items.length)]!;
 const jitter = (spread: number) => (Math.random() - 0.5) * spread;
@@ -52,20 +54,21 @@ export class Effects {
     for (let i = 0; i < 8; i++) {
       this.haze.spawn(at, v3(jitter(1), 0.8 + Math.random(), jitter(1)), THEME.smoke, { life: 2, size: 0.4, grow: 2, alpha: 0.7, drag: 1 });
     }
-    void this.ring(at.clone().setY(0.05), 0xffd9a0, 1.6, 0.5);
+    void this.ring(at.clone().setY(0.05), 0xffd9a0, 1.4, 0.45, 0.7);
     this.flash.position.copy(at).y += 0.6;
     this.flash.intensity = 40;
   }
 
-  /** A column of white water and a ripple. */
+  /** A tall column of white water that rises and collapses, spray falling back, and a ripple. */
   splash(at: THREE.Vector3): void {
-    for (let i = 0; i < 26; i++) {
-      this.haze.spawn(at, v3(jitter(0.8), 3 + Math.random() * 2.5, jitter(0.8)), THEME.water, { life: 1, gravity: 9.8, size: 0.16, grow: 0.5, alpha: 0.9 });
+    void this.column(at);
+    for (let i = 0; i < 30; i++) {
+      this.haze.spawn(at, v3(jitter(1.2), 3.5 + Math.random() * 2.5, jitter(1.2)), THEME.water, { life: 1.1, gravity: 9.8, size: 0.28, grow: 0.4, alpha: 0.95 });
     }
-    for (let i = 0; i < 6; i++) {
-      this.haze.spawn(at, v3(jitter(1.5), 0.4, jitter(1.5)), THEME.water, { life: 1.2, size: 0.3, grow: 1.5, alpha: 0.4, drag: 2 });
+    for (let i = 0; i < 8; i++) {
+      this.haze.spawn(at, v3(jitter(1.6), 0.5, jitter(1.6)), THEME.water, { life: 1.6, size: 0.45, grow: 1.8, alpha: 0.35, drag: 2 });
     }
-    void this.ring(at.clone().setY(0.03), THEME.water, 1.1, 0.9);
+    void this.ring(at.clone().setY(0.03), THEME.water, 0.9, 1.4, 0.5);
   }
 
   /** Gun flash and a puff of smoke where a shell leaves. */
@@ -142,14 +145,28 @@ export class Effects {
     this.anims = [];
   }
 
-  private async ring(at: THREE.Vector3, color: number, scale: number, duration: number): Promise<void> {
+  private async column(at: THREE.Vector3): Promise<void> {
+    const material = new THREE.MeshBasicMaterial({ color: THEME.water, transparent: true, depthWrite: false, side: THREE.DoubleSide });
+    const column = new THREE.Mesh(columnGeo, material);
+    column.position.copy(at);
+    this.scene.add(column);
+    await this.animate(1.1, (t) => {
+      const rise = Math.sin(Math.min(1, t * 1.6) * Math.PI); // up fast, then falls back
+      column.scale.set(1 + t * 1.5, 0.05 + rise * 2.2, 1 + t * 1.5);
+      material.opacity = 0.85 * (1 - t);
+    });
+    this.scene.remove(column);
+    material.dispose();
+  }
+
+  private async ring(at: THREE.Vector3, color: number, scale: number, duration: number, opacity = 1): Promise<void> {
     const material = new THREE.MeshBasicMaterial({ color, transparent: true, depthWrite: false });
     const ring = new THREE.Mesh(ringGeo, material);
     ring.position.copy(at);
     this.scene.add(ring);
     await this.animate(duration, (t) => {
       ring.scale.setScalar(0.15 + t * scale);
-      material.opacity = 1 - t;
+      material.opacity = opacity * (1 - t);
     });
     this.scene.remove(ring);
     material.dispose();

@@ -50,37 +50,68 @@ export function merge(parts: Part[]): THREE.BufferGeometry {
   return merged;
 }
 
+/** Box whose top face is scaled by `taper`, giving sloped, stealthy-looking sides. */
+export function block(size: [number, number, number], at: [number, number, number], color: number, taper = 0.8): Part {
+  const g = new THREE.BoxGeometry(...size);
+  const pos = g.attributes.position!;
+  for (let i = 0; i < pos.count; i++) {
+    if (pos.getY(i) > 0) pos.setXYZ(i, pos.getX(i) * taper, pos.getY(i), pos.getZ(i) * taper);
+  }
+  return paint(g.translate(...at), color);
+}
+
+export function ball(radius: number, at: [number, number, number], color: number): Part {
+  return paint(new THREE.IcosahedronGeometry(radius, 1).translate(...at), color);
+}
+
+/** Flat ring lying on the deck (helipad circle). */
+export function deckRing(radius: number, at: [number, number, number], color: number): Part {
+  return paint(new THREE.TorusGeometry(radius, 0.012, 3, 20).rotateX(Math.PI / 2).translate(...at), color);
+}
+
 export interface HullSpec {
   length: number;
-  beam: number; // full width at the widest point
+  beam: number; // full width of the deck at the widest point
   freeboard: number; // deck height above the waterline
   draft: number; // keel depth below the waterline
   bow: number; // fraction of the length that tapers to the bow
 }
 
-const STATIONS = 12;
+export interface HullColors {
+  top: number;
+  boot: number; // stripe along the waterline
+  bottom: number;
+  deck: number;
+}
+
+const STATIONS = 14;
+const BOOT = 0.045; // height of the waterline stripe
 
 /**
- * Lofted hull along +x from 0 to `length`: square-ish stern, pointed bow with a slight sheer.
- * Hull sides above the waterline get `topColor`, below it `bottomColor`, the deck `deckColor`.
+ * Lofted hull along +x from 0 to `length`: square-ish stern, flared pointed bow with a slight
+ * sheer, and a dark stripe at the waterline.
  */
-export function hull(s: HullSpec, colors: { top: number; bottom: number; deck: number }): Part {
+export function hull(s: HullSpec, colors: HullColors): Part {
   const rings: THREE.Vector3[][] = [];
   for (let i = 0; i <= STATIONS; i++) {
     const t = i / STATIONS;
-    const half = (s.beam / 2) * halfWidth(t, s.bow);
-    const deck = s.freeboard + Math.max(0, t - 0.75) * 0.3; // bow rises a little
+    const deckHalf = (s.beam / 2) * halfWidth(t, s.bow);
+    const waterHalf = (s.beam / 2) * 0.9 * halfWidth(t, s.bow * 1.25); // finer at the waterline: the bow flares out above it
+    const deck = s.freeboard + Math.max(0, t - 0.7) * 0.35; // bow rises a little
     const x = t * s.length;
     // Port deck edge → down to the keel → up to the starboard deck edge.
     rings.push([
-      new THREE.Vector3(x, deck, -half),
-      new THREE.Vector3(x, 0, -half * 0.96),
-      new THREE.Vector3(x, -s.draft, -half * 0.35),
-      new THREE.Vector3(x, -s.draft, half * 0.35),
-      new THREE.Vector3(x, 0, half * 0.96),
-      new THREE.Vector3(x, deck, half),
+      new THREE.Vector3(x, deck, -deckHalf),
+      new THREE.Vector3(x, BOOT, -waterHalf),
+      new THREE.Vector3(x, 0, -waterHalf * 0.98),
+      new THREE.Vector3(x, -s.draft, -waterHalf * 0.35),
+      new THREE.Vector3(x, -s.draft, waterHalf * 0.35),
+      new THREE.Vector3(x, 0, waterHalf * 0.98),
+      new THREE.Vector3(x, BOOT, waterHalf),
+      new THREE.Vector3(x, deck, deckHalf),
     ]);
   }
+  const last = rings[0]!.length - 1;
 
   const positions: number[] = [];
   const vertexColors: number[] = [];
@@ -89,20 +120,24 @@ export function hull(s: HullSpec, colors: { top: number; bottom: number; deck: n
     const col = new THREE.Color(color);
     for (let k = 0; k < 3; k++) vertexColors.push(col.r, col.g, col.b);
   };
+  const stripColor = (a: THREE.Vector3, b: THREE.Vector3) => {
+    const [lo, hi] = [Math.min(a.y, b.y), Math.max(a.y, b.y)];
+    return lo < 0 ? colors.bottom : hi <= BOOT + 1e-6 ? colors.boot : colors.top;
+  };
 
   for (let i = 0; i < STATIONS; i++) {
     const [r, n] = [rings[i]!, rings[i + 1]!];
-    for (let k = 0; k < 5; k++) {
-      const color = Math.min(r[k]!.y, r[k + 1]!.y) < 0 ? colors.bottom : colors.top;
+    for (let k = 0; k < last; k++) {
+      const color = stripColor(r[k]!, r[k + 1]!);
       tri(r[k]!, n[k + 1]!, r[k + 1]!, color);
       tri(r[k]!, n[k]!, n[k + 1]!, color);
     }
-    tri(r[0]!, r[5]!, n[5]!, colors.deck);
-    tri(r[0]!, n[5]!, n[0]!, colors.deck);
+    tri(r[0]!, r[last]!, n[last]!, colors.deck);
+    tri(r[0]!, n[last]!, n[0]!, colors.deck);
   }
   const stern = rings[0]!;
   const center = new THREE.Vector3(0, (s.freeboard - s.draft) / 2, 0);
-  for (let k = 0; k < 6; k++) tri(center, stern[k]!, stern[(k + 1) % 6]!, colors.top);
+  for (let k = 0; k <= last; k++) tri(center, stern[k]!, stern[(k + 1) % (last + 1)]!, colors.top);
 
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
@@ -112,9 +147,9 @@ export function hull(s: HullSpec, colors: { top: number; bottom: number; deck: n
 
 /** Width profile 0..1 along the hull: narrower stern, full midships, pointed bow. */
 function halfWidth(t: number, bow: number): number {
-  if (t < 0.12) return 0.8 + (t / 0.12) * 0.2;
-  const bowStart = 1 - bow;
+  if (t < 0.1) return 0.82 + (t / 0.1) * 0.18;
+  const bowStart = 1 - Math.min(bow, 0.6);
   if (t <= bowStart) return 1;
-  const u = (t - bowStart) / bow;
-  return 1 - u ** 1.7;
+  const u = (t - bowStart) / (1 - bowStart);
+  return 1 - u ** 1.6;
 }

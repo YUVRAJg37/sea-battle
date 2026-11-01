@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import {
   BOARD_SIZE, RADAR_RADIUS, SHIPS, area, inBounds, key, shipCells, type Cell, type Fleet, type Marks, type Ship, type ShipType,
 } from '../engine';
@@ -7,17 +8,62 @@ import { THEME } from './theme';
 
 const HALF = BOARD_SIZE / 2;
 
-const pegGeo = new THREE.OctahedronGeometry(0.11); // small red marker; the fire above it does the talking
-const hitMat = new THREE.MeshStandardMaterial({ color: THEME.hit, emissive: 0x7a0000, flatShading: true });
-const missGeo = new THREE.CylinderGeometry(0.16, 0.16, 0.06, 8);
-const missMat = new THREE.MeshStandardMaterial({ color: THEME.miss });
+// Hit: glowing ember ring hovering at deck height over a scorch mark. Miss: a white ring floating on the water.
+const emberGeo = new THREE.TorusGeometry(0.2, 0.035, 6, 24).rotateX(Math.PI / 2);
+const emberMat = new THREE.MeshBasicMaterial({ color: 0xff5a3c });
+const scorchGeo = new THREE.PlaneGeometry(0.9, 0.9).rotateX(-Math.PI / 2);
+const missGeo = new THREE.TorusGeometry(0.15, 0.04, 6, 20).rotateX(Math.PI / 2);
+const missMat = new THREE.MeshStandardMaterial({ color: THEME.miss, roughness: 0.4 });
+let scorchMat: THREE.MeshBasicMaterial | null = null;
 const scoutGeo = new THREE.OctahedronGeometry(0.22);
 const scoutMat = new THREE.MeshStandardMaterial({ color: THEME.amber, emissive: 0x664400, flatShading: true });
 const tileGeo = new THREE.PlaneGeometry(0.92, 0.92).rotateX(-Math.PI / 2);
-const okMat = new THREE.MeshBasicMaterial({ color: 0x66ff88, transparent: true, opacity: 0.5 });
-const badMat = new THREE.MeshBasicMaterial({ color: 0xff5252, transparent: true, opacity: 0.5 });
-const ringGeo = new THREE.RingGeometry(0.36, 0.47, 4, 1, Math.PI / 4).rotateX(-Math.PI / 2); // square outline
-const lastShotMat = new THREE.MeshBasicMaterial({ color: THEME.amber });
+const bracketGeo = cornerBrackets();
+const ringGeo = new THREE.RingGeometry(0.42, 0.46, 4, 1, Math.PI / 4).rotateX(-Math.PI / 2); // thin square outline
+const lastShotMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.6 });
+
+/** Target marker colors: amber when aiming, green/red when placing a ship. */
+export type PreviewTone = 'aim' | 'ok' | 'bad';
+const TONES: Record<PreviewTone, { fill: THREE.Material; bracket: THREE.Material }> = {
+  aim: tone(THEME.amber, 0.18),
+  ok: tone(0x66ff88, 0.22),
+  bad: tone(0xff5252, 0.3),
+};
+
+function tone(color: number, fillOpacity: number) {
+  return {
+    fill: new THREE.MeshBasicMaterial({ color, transparent: true, opacity: fillOpacity, depthWrite: false }),
+    bracket: new THREE.MeshBasicMaterial({ color }),
+  };
+}
+
+/** Four L-shaped corners framing one cell, flat on the board. */
+function cornerBrackets(): THREE.BufferGeometry {
+  const [edge, arm, thick] = [0.47, 0.17, 0.045];
+  const parts: THREE.BufferGeometry[] = [];
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      parts.push(new THREE.BoxGeometry(arm, 0.01, thick).translate(sx * (edge - arm / 2), 0, sz * (edge - thick / 2)));
+      parts.push(new THREE.BoxGeometry(thick, 0.01, arm).translate(sx * (edge - thick / 2), 0, sz * (edge - arm / 2)));
+    }
+  }
+  return mergeGeometries(parts)!;
+}
+
+/** Soft dark burn mark, drawn once. */
+function scorch(): THREE.MeshBasicMaterial {
+  if (scorchMat) return scorchMat;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = 128;
+  const ctx = canvas.getContext('2d')!;
+  const g = ctx.createRadialGradient(64, 64, 4, 64, 64, 62);
+  g.addColorStop(0, 'rgba(10, 8, 6, 0.9)');
+  g.addColorStop(0.5, 'rgba(30, 18, 10, 0.55)');
+  g.addColorStop(1, 'rgba(30, 18, 10, 0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 128, 128);
+  return (scorchMat = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(canvas), transparent: true, depthWrite: false }));
+}
 const radarLineMat = new THREE.LineBasicMaterial({ color: THEME.amber });
 
 /** Cell center in board-local coordinates. */
@@ -56,7 +102,9 @@ export class Board3D {
   private readonly shipLayer = new THREE.Group();
   private readonly markers = new THREE.Group();
   private readonly marked = new Set<string>();
-  private readonly preview: TilePool;
+  private readonly reticle = new THREE.Group();
+  private readonly previewFill: TilePool;
+  private readonly previewBrackets: TilePool;
   private readonly lastShot: TilePool;
 
   constructor(scene: THREE.Scene, readonly centerX: number, tint: number) {
@@ -69,8 +117,9 @@ export class Board3D {
     grid.position.y = 0.01;
     grid.material.transparent = true;
     grid.material.opacity = 0.35;
-    this.group.add(this.surface, grid, coordinateLabels(), this.shipLayer, this.markers);
-    this.preview = new TilePool(this.group, tileGeo, 0.04);
+    this.group.add(this.surface, grid, coordinateLabels(), this.shipLayer, this.markers, this.reticle);
+    this.previewFill = new TilePool(this.group, tileGeo, 0.03);
+    this.previewBrackets = new TilePool(this.reticle, bracketGeo, 0.06);
     this.lastShot = new TilePool(this.group, ringGeo, 0.05);
     scene.add(this.group);
   }
@@ -117,6 +166,13 @@ export class Board3D {
 
   update(dt: number, time: number): void {
     for (const view of this.ships.values()) view.update(dt, time);
+    const pulse = 1 + Math.sin(time * 6) * 0.06;
+    for (const bracket of this.reticle.children) bracket.scale.set(pulse, 1, pulse);
+    for (const marker of this.markers.children) {
+      const { kind, phase } = marker.userData;
+      if (kind === 'miss') marker.position.y = 0.03 + Math.sin(time * 2 + phase) * 0.025;
+      if (kind === 'ember') marker.scale.setScalar(1 + Math.sin(time * 4 + phase) * 0.08);
+    }
   }
 
   /** Adds markers for shots not shown yet and scorches damaged ships. */
@@ -129,8 +185,13 @@ export class Board3D {
       if (this.marked.has(k)) continue;
       this.marked.add(k);
       const [x, y] = k.split(',').map(Number) as [number, number];
-      const isHit = result === 'hit';
-      this.add(new THREE.Mesh(isHit ? pegGeo : missGeo, isHit ? hitMat : missMat), { x, y }, isHit ? 0.35 : 0.03);
+      const phase = Math.random() * Math.PI * 2;
+      if (result === 'hit') {
+        this.add(new THREE.Mesh(scorchGeo, scorch()), { x, y }, 0.02);
+        this.add(Object.assign(new THREE.Mesh(emberGeo, emberMat), { userData: { kind: 'ember', phase } }), { x, y }, 0.45);
+      } else {
+        this.add(Object.assign(new THREE.Mesh(missGeo, missMat), { userData: { kind: 'miss', phase } }), { x, y }, 0.03);
+      }
     }
   }
 
@@ -149,9 +210,10 @@ export class Board3D {
     this.add(makeBadge(String(count)), center, 1.3);
   }
 
-  /** Highlights cells; `ok` picks green or red. Empty list clears the preview. */
-  setPreview(cells: Cell[], ok = true): void {
-    this.preview.show(cells, ok ? okMat : badMat);
+  /** Frames cells with a pulsing target marker. Empty list clears it. */
+  setPreview(cells: Cell[], tone: PreviewTone = 'aim'): void {
+    this.previewFill.show(cells, TONES[tone].fill);
+    this.previewBrackets.show(cells, TONES[tone].bracket);
   }
 
   /** Outlines the cells the latest shot landed on. */

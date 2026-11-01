@@ -50,7 +50,7 @@ const fits = (cells: Cell[]) => cells.every((c) => inBounds(c) && !shipAt(fleet,
 function previewPlacement() {
   if (!held || !pointed) return scene.mine.setPreview([]);
   const cells = shipCells({ ...held, origin: pointed });
-  scene.mine.setPreview(cells.filter(inBounds), fits(cells));
+  scene.mine.setPreview(cells.filter(inBounds), fits(cells) ? 'ok' : 'bad');
 }
 
 function tapPlacing(cell: Cell) {
