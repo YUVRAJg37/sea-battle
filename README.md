@@ -7,7 +7,7 @@ Turn-based 1v1 naval combat for web and mobile, with ship abilities and peer-to-
 - [x] M2: 3D board (Three.js): ship placement, aiming previews for every ability, hit/miss effects, touch controls.
 - [x] M3: AI opponent (`src/bot/`): heat map over every placement the remaining ships could still have, sharpened by hits, radar and scouting. Uses abilities when ready. Sinks a fleet in ~21 turns on average (random shooting: ~96)
 - [x] UI pass: naval command theme, title / how-to / battle report screens, ability cards with cooldown sweep, fleet status, A–J/1–10 labels, radar outlines, last-shot marker, shell and torpedo flights, fires, sinking wrecks, camera shake
-- [x] Asset pass: five toon-shaded warships modelled in code (`src/render/models/`, outlined, naval palette in `palettes.ts`), ships bob/list/scorch with damage, GPU toon water, soft instanced particles (fire, smoke, spray), muzzle flashes, fireball + shockwave hits, water-column misses, dusk sky, sun glare, fog wisps, gulls
+- [x] Asset pass: five toon-shaded warships modelled in code (`src/render/models/`, outlined, naval palette in `palettes.ts`), ships bob/list/scorch with damage, GPU toon water, soft instanced particles (fire, smoke, spray), muzzle flashes, fireball + shockwave hits, water-column misses, dusk sky, sun glare, fog wisps, gulls; sea life (`oceanLife.ts`): channel buoys, drifting debris, leaping dolphins and fish, a distant whale, lighthouse and palm islands
 - [ ] M4–M6: WebRTC multiplayer, rematch/chat, random matchmaking
 - [ ] M7: sound and polish
 

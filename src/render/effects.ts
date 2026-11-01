@@ -71,6 +71,21 @@ export class Effects {
     void this.ring(at.clone().setY(0.03), THEME.water, 0.9, 1.4, 0.5);
   }
 
+  /** A small splash: a few droplets and a faint ripple. For fish, dolphins and other sea life. */
+  droplets(at: THREE.Vector3, count = 8, speed = 2, size = 0.1): void {
+    for (let i = 0; i < count; i++) {
+      this.haze.spawn(at, v3(jitter(speed * 0.5), speed * (0.6 + Math.random() * 0.6), jitter(speed * 0.5)), THEME.water, { life: 0.7, gravity: 9.8, size, alpha: 0.85 });
+    }
+    void this.ring(at.clone().setY(at.y + 0.02), THEME.water, size * 4, 0.8, 0.35);
+  }
+
+  /** A whale's spout: a plume of mist that rises and drifts. */
+  spout(at: THREE.Vector3): void {
+    for (let i = 0; i < 24; i++) {
+      this.haze.spawn(at, v3(jitter(0.4), 2.5 + Math.random() * 1.5, jitter(0.4)), THEME.water, { life: 1.4, gravity: 1.5, size: 0.35, grow: 2, alpha: 0.6, drag: 1 });
+    }
+  }
+
   /** Gun flash and a puff of smoke where a shell leaves. */
   muzzle(at: THREE.Vector3): void {
     this.glow.spawn(at, v3(0, 0, 0), 0xffe7a8, { life: 0.12, size: 0.9 });

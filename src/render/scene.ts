@@ -5,6 +5,7 @@ import { Board3D } from './board3d';
 import { Effects } from './effects';
 import { createStage, type Stage } from './stage';
 import { createAmbient } from './ambient';
+import { createOceanLife } from './oceanLife';
 import { SUN_DIRECTION, THEME } from './theme';
 import { createWater } from './water';
 
@@ -29,11 +30,13 @@ export class SeaScene {
     const animateWater = createWater(this.stage.scene, sun);
     const animateAmbient = createAmbient(this.stage.scene, sun);
     this.effects = new Effects(this.stage.scene);
+    const animateLife = createOceanLife(this.stage.scene, this.effects);
     this.mine = new Board3D(this.stage.scene, -BOARD_OFFSET, THEME.myBoard);
     this.enemy = new Board3D(this.stage.scene, BOARD_OFFSET, THEME.enemyBoard);
     this.stage.onFrame((dt, t) => {
       animateWater(t);
       animateAmbient(dt, t);
+      animateLife(dt, t);
       this.effects.update(dt);
       this.mine.update(dt, t);
       this.enemy.update(dt, t);

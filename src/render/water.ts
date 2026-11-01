@@ -4,13 +4,20 @@ import { THEME } from './theme';
 // Waves are displaced on the GPU; the fragment shader derives faceted normals from screen-space
 // derivatives, bands the color by height, and paints scrolling toon foam and sun glints.
 
+export const WATER_LEVEL = -0.3; // below the boards so swells never cover the grid
+
+/** Surface height at (x, z) and time t; a twin of the shader's wave() so floating things ride the swell. */
+export function waveHeight(x: number, z: number, t: number): number {
+  return WATER_LEVEL + Math.sin(x * 0.45 + t) * 0.08 + Math.cos(z * 0.35 + t * 1.3) * 0.08 + Math.sin((x + z) * 0.9 + t * 1.7) * 0.035;
+}
+
 const vertexShader = /* glsl */ `
   uniform float uTime;
   varying vec3 vWorld;
   varying float vHeight;
   #include <fog_pars_vertex>
 
-  float wave(vec2 p) {
+  float wave(vec2 p) { // keep in step with waveHeight()
     return sin(p.x * 0.45 + uTime) * 0.08
          + cos(p.y * 0.35 + uTime * 1.3) * 0.08
          + sin((p.x + p.y) * 0.9 + uTime * 1.7) * 0.035;
@@ -87,7 +94,7 @@ export function createWater(scene: THREE.Scene, sunDirection: THREE.Vector3): (t
   });
   // Dense enough for smooth swells near the boards; fog hides the coarse far edge.
   const mesh = new THREE.Mesh(new THREE.PlaneGeometry(160, 160, 110, 110).rotateX(-Math.PI / 2), material);
-  mesh.position.y = -0.3; // below the boards so swells never cover the grid
+  mesh.position.y = WATER_LEVEL;
   scene.add(mesh);
   return (time) => {
     material.uniforms.uTime!.value = time;
