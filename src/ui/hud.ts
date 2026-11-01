@@ -17,12 +17,18 @@ export interface ShipStatus {
   sunk: boolean;
 }
 
+export interface LogLine {
+  text: string;
+  kind: 'mine' | 'enemy' | 'hint';
+}
+
 export interface HudView {
   screen: Screen;
   howTo: boolean;
+  turnLabel: string;
   banner: string;
-  bannerTone: 'amber' | 'red' | 'green';
-  status: string;
+  tone: 'amber' | 'red' | 'green';
+  log: LogLine[];
   mode: Mode;
   abilities: AbilityView[];
   canStart: boolean;
@@ -38,12 +44,17 @@ export interface HudHandlers {
 }
 
 const STAT_ROWS: [string, (s: PlayerStats) => string][] = [
-  ['Turns', (s) => String(s.turns)],
-  ['Shells landed', (s) => `${s.hits} / ${s.shots}`],
+  ['Turns taken', (s) => String(s.turns)],
+  ['Shells on target', (s) => `${s.hits} of ${s.shots}`],
   ['Accuracy', (s) => `${s.accuracy}%`],
-  ['Abilities used', (s) => String(s.abilities)],
-  ['Ships lost', (s) => `${s.shipsLost} / ${SHIP_TYPES.length}`],
+  ['Weapons used', (s) => String(s.abilities)],
+  ['Ships lost', (s) => `${s.shipsLost} of ${SHIP_TYPES.length}`],
 ];
+
+const el = <K extends keyof HTMLElementTagNameMap>(tag: K, className = '', text = '') =>
+  Object.assign(document.createElement(tag), { className, textContent: text });
+
+const capitalize = (s: string) => s[0]!.toUpperCase() + s.slice(1);
 
 /** DOM overlay. Stateless: call `render` with the full view each time something changes. */
 export function createHud({ onButton, onMode }: HudHandlers): { render(view: HudView): void } {
@@ -56,33 +67,36 @@ export function createHud({ onButton, onMode }: HudHandlers): { render(view: Hud
     ...SHIP_TYPES.map((type) => {
       const { ability, cooldown } = SHIPS[type];
       const info = MODE_INFO[ability];
-      const li = document.createElement('li');
-      li.innerHTML = `${info.icon}<strong>${info.label}</strong>`; // constant markup, no user data
-      li.append(span(`${info.description} ${capitalize(type)}, recharges in ${cooldown} turns.`));
+      const li = el('li');
+      li.innerHTML = info.icon; // constant SVG
+      li.append(el('strong', '', info.label), el('span', 'ship-name', `${capitalize(type)} · reload ${cooldown}`), el('span', 'desc', info.description));
       return li;
     }),
   );
 
-  function abilityButton(a: AbilityView, active: boolean): HTMLButtonElement {
+  function slot(a: AbilityView, index: number, active: boolean): HTMLButtonElement {
     const info = MODE_INFO[a.mode];
-    const button = document.createElement('button');
-    button.className = 'ability';
-    button.innerHTML = info.icon; // constant SVG
-    button.append(span(info.label));
-    button.title = info.description;
-    button.disabled = !a.ready;
+    const button = el('button', 'slot');
+    button.classList.toggle('fire', a.mode === 'shot');
     button.classList.toggle('active', active);
+    button.innerHTML = info.icon; // constant SVG
+    button.append(el('span', 'name', info.label));
+    button.disabled = !a.ready;
+    button.title = info.description;
     button.setAttribute('aria-pressed', String(active));
+
     let note = '';
     if (a.lost) {
       button.classList.add('lost');
-      button.append(span('Lost', 'badge'));
+      button.append(el('span', 'note', 'Lost'));
       note = ' Lost with its ship.';
     } else if (a.cooldown > 0 && a.mode !== 'shot') {
-      button.classList.add('cooling');
-      button.style.setProperty('--p', String(a.cooldown / SHIPS[shipForAbility(a.mode)].cooldown));
-      button.append(span(String(a.cooldown), 'badge'));
+      const reload = el('span', 'reload');
+      reload.style.setProperty('--p', String(a.cooldown / SHIPS[shipForAbility(a.mode)].cooldown));
+      button.append(el('span', 'note', a.cooldown === 1 ? '1 turn' : `${a.cooldown} turns`), reload);
       note = ` Ready in ${a.cooldown} turns.`;
+    } else {
+      button.append(el('kbd', 'key', String(index + 1)));
     }
     button.setAttribute('aria-label', `${info.label}. ${info.description}${note}`);
     button.addEventListener('click', () => onMode(a.mode));
@@ -92,58 +106,59 @@ export function createHud({ onButton, onMode }: HudHandlers): { render(view: Hud
   function renderFleet(id: string, ships: ShipStatus[]) {
     $(id).replaceChildren(
       ...ships.map(({ type, sunk }) => {
-        const bar = document.createElement('div');
-        bar.className = sunk ? 'ship sunk' : 'ship';
+        const bar = el('div', sunk ? 'ship sunk' : 'ship');
         bar.style.width = `${SHIPS[type].length * 7}px`;
-        bar.title = `${capitalize(type)}${sunk ? ' (sunk)' : ''}`;
+        bar.title = `${capitalize(type)}${sunk ? ', sunk' : ''}`;
         return bar;
       }),
     );
     $(id).setAttribute('aria-label', `${ships.filter((s) => !s.sunk).length} of ${ships.length} ships afloat`);
   }
 
+  let howToOpen = false;
+
   return {
     render(v) {
       $('title').hidden = v.screen !== 'title';
       $('over').hidden = v.screen !== 'over';
       $('howto').hidden = !v.howTo;
-      $('hud').hidden = v.screen === 'title';
-      $('panel').hidden = v.screen === 'over';
+      // Move focus into the sheet when it opens and back to where it was opened from when it closes.
+      if (v.howTo !== howToOpen) {
+        howToOpen = v.howTo;
+        document.querySelector<HTMLButtonElement>(v.howTo ? '[data-act="close-howto"]' : '[data-act="howto"]')?.focus();
+      }
+      $('hud').hidden = v.screen === 'title' || v.screen === 'over';
       $('placing').hidden = v.screen !== 'placing';
       $('battle').hidden = v.screen !== 'battle';
 
+      $('turn-label').textContent = v.turnLabel;
       $('banner').textContent = v.banner;
-      $('banner').dataset.tone = v.bannerTone;
-      $('status').textContent = v.status;
+      ($('banner').parentElement as HTMLElement).dataset.tone = v.tone;
+      $('log').replaceChildren(...v.log.map((line) => el('p', line.kind, line.text)));
       ($('start') as HTMLButtonElement).disabled = !v.canStart;
       $('rotate-battle').hidden = !v.showRotate;
-      $('view-toggle').textContent = v.viewLabel;
+      $('view-toggle').innerHTML = `${v.viewLabel} <kbd>V</kbd>`; // constant labels
 
       $('fleets').hidden = !v.fleets;
       if (v.fleets) {
         renderFleet('fleet-mine', v.fleets.mine);
         renderFleet('fleet-enemy', v.fleets.enemy);
       }
-      $('abilities').replaceChildren(...v.abilities.map((a) => abilityButton(a, a.mode === v.mode)));
+      $('abilities').replaceChildren(...v.abilities.map((a, i) => slot(a, i, a.mode === v.mode)));
 
       if (v.result) {
         const { won, mine, enemy } = v.result;
-        $('result-title').textContent = won ? 'Victory' : 'Defeat';
-        $('result-title').style.color = won ? 'var(--green)' : 'var(--red)';
-        $('stats').querySelector('tbody')!.replaceChildren(
-          ...STAT_ROWS.map(([label, value]) => {
-            const tr = document.createElement('tr');
-            for (const text of [label, value(mine), value(enemy)]) tr.append(Object.assign(document.createElement('td'), { textContent: text }));
-            return tr;
-          }),
+        const title = $('result-title');
+        title.textContent = won ? 'Victory' : 'Defeat';
+        title.className = won ? 'won' : 'lost';
+        $('result-sub').textContent = won
+          ? `Enemy fleet destroyed in ${mine.turns} turns.`
+          : `Your fleet went down on turn ${enemy.turns}.`;
+        $('stats').replaceChildren(
+          el('span', 'head'), el('span', 'head meta value', 'You'), el('span', 'head meta value', 'Enemy'),
+          ...STAT_ROWS.flatMap(([label, value]) => [el('span', 'label', label), el('span', 'value', value(mine)), el('span', 'value', value(enemy))]),
         );
       }
     },
   };
 }
-
-function span(text: string, className = ''): HTMLSpanElement {
-  return Object.assign(document.createElement('span'), { textContent: text, className });
-}
-
-const capitalize = (s: string) => s[0]!.toUpperCase() + s.slice(1);

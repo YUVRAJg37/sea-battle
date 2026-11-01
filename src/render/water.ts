@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { THEME } from './theme';
 
-// Waves are displaced on the GPU; the fragment shader derives faceted normals from screen-space
-// derivatives, bands the color by height, and paints scrolling toon foam and sun glints.
+// Waves are displaced on the GPU; the fragment shader bands the color by height and paints
+// scrolling toon foam and sun glints off a smooth normal taken from the wave's slope.
 
 export const WATER_LEVEL = -0.3; // below the boards so swells never cover the grid
 
@@ -15,6 +15,7 @@ const vertexShader = /* glsl */ `
   uniform float uTime;
   varying vec3 vWorld;
   varying float vHeight;
+  varying vec3 vNormal;
   #include <fog_pars_vertex>
 
   float wave(vec2 p) { // keep in step with waveHeight()
@@ -27,6 +28,11 @@ const vertexShader = /* glsl */ `
     vec3 pos = position;
     pos.y += wave(pos.xz);
     vHeight = pos.y;
+    // Smooth normal from the wave's slope, for glints (the toon color bands stay faceted).
+    float diag = cos((pos.x + pos.z) * 0.9 + uTime * 1.7) * 0.9 * 0.035;
+    float dx = cos(pos.x * 0.45 + uTime) * 0.45 * 0.08 + diag;
+    float dz = -sin(pos.z * 0.35 + uTime * 1.3) * 0.35 * 0.08 + diag;
+    vNormal = normalize(vec3(-dx, 1.0, -dz));
     vec4 world = modelMatrix * vec4(pos, 1.0);
     vWorld = world.xyz;
     vec4 mvPosition = viewMatrix * world;
@@ -43,6 +49,7 @@ const fragmentShader = /* glsl */ `
   uniform vec3 uSunDir;
   varying vec3 vWorld;
   varying float vHeight;
+  varying vec3 vNormal;
   #include <fog_pars_fragment>
 
   float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -54,8 +61,6 @@ const fragmentShader = /* glsl */ `
   }
 
   void main() {
-    vec3 n = normalize(cross(dFdx(vWorld), dFdy(vWorld)));
-    if (n.y < 0.0) n = -n;
 
     float crest = smoothstep(-0.12, 0.16, vHeight);
     vec3 color = mix(uDeep, uShallow, floor(crest * 3.0) / 3.0); // three toon bands
@@ -67,8 +72,10 @@ const fragmentShader = /* glsl */ `
     color = mix(color, uFoam, streak * smoothstep(0.45, 0.9, crest) * 0.28);
 
     vec3 viewDir = normalize(cameraPosition - vWorld);
-    float spec = pow(max(dot(reflect(-uSunDir, n), viewDir), 0.0), 40.0);
-    color += step(0.45, spec) * vec3(1.0, 0.85, 0.65) * 0.55;
+    // Sharp, sparse glints rather than broad patches of reflection.
+    float spec = pow(max(dot(reflect(-uSunDir, normalize(vNormal)), viewDir), 0.0), 300.0);
+    spec *= 1.0 - smoothstep(12.0, 30.0, distance(cameraPosition, vWorld)); // grazing far water would glare in big sheets
+    color += step(0.5, spec) * vec3(1.0, 0.85, 0.65) * 0.45;
 
     gl_FragColor = vec4(color, 1.0);
     #include <fog_fragment>

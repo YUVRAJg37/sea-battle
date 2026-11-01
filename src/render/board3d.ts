@@ -249,7 +249,7 @@ function coordinateLabels(): THREE.Mesh {
   canvas.width = canvas.height = size * px;
   const ctx = canvas.getContext('2d')!;
   ctx.fillStyle = THEME.label;
-  ctx.font = `600 ${px * 0.5}px "Chakra Petch", monospace`;
+  ctx.font = `600 ${px * 0.5}px "Oxanium", monospace`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   for (let i = 0; i < BOARD_SIZE; i++) {
@@ -276,7 +276,7 @@ function makeBadge(text: string): THREE.Sprite {
   ctx.arc(64, 64, 60, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = '#3a2a00';
-  ctx.font = '600 76px "Chakra Petch", monospace';
+  ctx.font = '600 76px "Oxanium", monospace';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(text, 64, 70);

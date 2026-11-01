@@ -8,6 +8,7 @@ Turn-based 1v1 naval combat for web and mobile, with ship abilities and peer-to-
 - [x] M3: AI opponent (`src/bot/`): heat map over every placement the remaining ships could still have, sharpened by hits, radar and scouting. Uses abilities when ready. Sinks a fleet in ~21 turns on average (random shooting: ~96)
 - [x] UI pass: naval command theme, title / how-to / battle report screens, ability cards with cooldown sweep, fleet status, A–J/1–10 labels, radar outlines, last-shot marker, shell and torpedo flights, fires, sinking wrecks, camera shake
 - [x] Asset pass: five toon-shaded warships modelled in code (`src/render/models/`, outlined, naval palette in `palettes.ts`), ships bob/list/scorch with damage, GPU toon water, soft instanced particles (fire, smoke, spray), muzzle flashes, fireball + shockwave hits, water-column misses, dusk sky, sun glare, fog wisps, gulls; sea life (`oceanLife.ts`): channel buoys, drifting debris, leaping dolphins and fish, a distant whale, lighthouse and palm islands
+- [x] UI redesign, tactical console: Oxanium type, cut-corner plates, turn card and fleet status pinned to the top edges, turn log, weapon rack with 1–6 hotkeys, side-sheet how-to, after-action report
 - [ ] M4–M6: WebRTC multiplayer, rematch/chat, random matchmaking
 - [ ] M7: sound and polish
 
@@ -49,4 +50,4 @@ npm run typecheck
 
 ## Controls
 - Placement: tap a ship to pick it up, tap water to drop it, Rotate to turn it.
-- Battle: pick Shot or an ability, then tap the enemy board. With a mouse, hover to aim and click to fire; on touch, tap to aim and tap the same cell again to fire. Rotate (or R) turns the airstrike. The torpedo launches from the side of the board nearer the tapped cell.
+- Battle: pick Shot or an ability, then tap the enemy board. With a mouse, hover to aim and click to fire; on touch, tap to aim and tap the same cell again to fire. Keys: 1–6 pick Fire and the five weapons, R rotates the airstrike, V switches between grids, Enter starts a game. The torpedo launches from the side of the board nearer the tapped cell.
