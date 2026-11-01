@@ -52,7 +52,7 @@ export function validateAction(state: GameState, action: Action): string | null 
   const marks = state.players[opponent(state.turn)].marks;
   const unshot = (c: Cell) => inBounds(c) && !(key(c) in marks);
 
-  // shortcut: assumes the action is well-formed; the network layer (M4) must check its shape first.
+  // Assumes the action is well-formed; actions from the network are shape-checked in net/protocol.ts first.
   switch (action.type) {
     case 'shot':
       return unshot(action.target) ? null : 'target is off the board or already shot';

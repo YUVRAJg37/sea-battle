@@ -8,8 +8,10 @@ import { aim, type Mode } from './game/targeting';
 import { describeTurn } from './game/describe';
 import { statsFor } from './game/stats';
 import { aiBot } from './bot/ai';
+import { agreeFirst, handshake, type Session } from './game/online';
+import { connect, newRoomCode, normalizeRoomCode } from './net/connect';
 import { SeaScene, type View } from './render/scene';
-import { createHud, type HudView, type LogLine, type Screen } from './ui/hud';
+import { createHud, type HudView, type LobbyView, type LogLine, type Screen } from './ui/hud';
 import { MODE_INFO } from './ui/modes';
 
 const PLACING_HINT = 'Tap a ship to pick it up, then tap the water to drop it.';
@@ -20,7 +22,7 @@ await document.fonts.load('600 48px "Oxanium"').catch(() => undefined);
 
 const canvas = document.querySelector('canvas')!;
 const scene = new SeaScene(canvas);
-const hud = createHud({ onButton, onMode: selectMode });
+const hud = createHud({ onButton, onMode: selectMode, onJoin: joinRoom });
 
 let screen: Screen = 'title';
 let howTo = false;
@@ -39,8 +41,15 @@ let shown: GameState | null = null; // state as the player has seen it, so the H
 let pointed: Cell | null = null; // cell under the pointer on the active board
 let view: View = 'overview';
 let log: LogLine[] = [];
+// Online
+let session: Session | null = null;
+let connecting: AbortController | null = null;
+let waitingForPeer = false; // our fleet is ready, theirs isn't yet
+let lobby: LobbyView = { stage: 'start', code: '', error: '', copied: false };
+let notice: HudView['notice'] = null;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const sentence = (s: string) => s[0]!.toUpperCase() + s.slice(1) + (s.endsWith('.') ? '' : '.');
 const flip = (d: Dir): Dir => (d === 'h' ? 'v' : 'h');
 const myTurn = () => screen === 'battle' && !busy && match!.state.turn === ME;
 
@@ -55,6 +64,7 @@ function previewPlacement() {
 }
 
 function tapPlacing(cell: Cell) {
+  if (waitingForPeer) return; // fleet is locked in once we're ready
   if (held) {
     const ship = { ...held, origin: cell };
     if (!fits(shipCells(ship))) return;
@@ -119,21 +129,35 @@ async function takeTurns(action: Action) {
   pointed = null;
   previewAim();
   render();
-
-  await playRecord(await m.play(action));
-  if (m.state.winner === null) {
-    await sleep(700);
-    focus('mine');
-    await sleep(600);
-    await playRecord(await m.opponentTurn());
-    if (m.state.winner === null) {
-      await sleep(900);
-      focus('enemy');
-    }
+  try {
+    await playRecord(await m.play(action));
+    if (m.state.winner === null) await enemyTurn(m);
+  } catch (e) {
+    return connectionLost(e);
   }
+  await endTurns(m);
+}
+
+/** The opponent's move. The bot answers at once; a remote player takes as long as they take. */
+async function enemyTurn(m: Match) {
+  busy = true;
+  await sleep(700);
+  if (m !== match) return;
+  acting = THEM;
+  focus('mine');
+  if (!session) await sleep(600);
+  await playRecord(await m.opponentTurn());
+  if (m.state.winner === null) {
+    await sleep(900);
+    focus('enemy');
+  }
+}
+
+async function endTurns(m: Match) {
   if (m !== match) return; // the player left to the menu mid-turn
   if (m.state.winner !== null) {
     await sleep(1800); // let the last ship sink before the report
+    if (m !== match) return;
     screen = 'over';
     focus('overview');
   }
@@ -176,6 +200,8 @@ function focus(next: View) {
 
 function newPlacement() {
   match = null;
+  notice = null;
+  waitingForPeer = false;
   fleet = randomFleet(Math.random);
   held = null;
   mode = 'shot';
@@ -187,17 +213,165 @@ function newPlacement() {
   focus('mine');
 }
 
+function startBattle(m: Match) {
+  match = m;
+  shown = m.state;
+  scene.mine.setPreview([]);
+  screen = 'battle';
+  if (m.state.turn === ME) {
+    log = hint('Pick a target on the enemy grid.');
+    focus('enemy');
+    return;
+  }
+  log = hint('Your opponent fires first.');
+  void (async () => {
+    try {
+      await enemyTurn(m);
+    } catch (e) {
+      return connectionLost(e);
+    }
+    await endTurns(m);
+  })();
+}
+
+// --- Online ---
+
+function setRoomInUrl(code: string | null) {
+  const url = new URL(location.href);
+  if (code) url.searchParams.set('room', code);
+  else url.searchParams.delete('room');
+  history.replaceState(null, '', url);
+}
+
+function leaveSession() {
+  connecting?.abort();
+  connecting = null;
+  const s = session;
+  session = null;
+  waitingForPeer = false;
+  s?.channel.close();
+}
+
+function openLobby(error = '') {
+  leaveSession();
+  match = null;
+  notice = null;
+  scene.reset();
+  setRoomInUrl(null);
+  lobby = { stage: 'start', code: '', error, copied: false };
+  screen = 'lobby';
+  focus('overview');
+}
+
+async function enterRoom(code: string) {
+  leaveSession();
+  const attempt = (connecting = new AbortController());
+  screen = 'lobby';
+  lobby = { stage: 'connecting', code, error: '', copied: false };
+  setRoomInUrl(code);
+  focus('overview');
+  try {
+    const { channel, role } = await connect(code, (stage) => ((lobby.stage = stage), render()), attempt.signal);
+    const s = await handshake(channel, role);
+    if (attempt.signal.aborted) return s.channel.close();
+    connecting = null;
+    session = s;
+    s.channel.onClose(() => session === s && opponentLeft());
+    newPlacement();
+  } catch (e) {
+    if (!attempt.signal.aborted) openLobby(sentence(e instanceof Error ? e.message : String(e)));
+  }
+}
+
+function joinRoom(input: string) {
+  const code = normalizeRoomCode(input);
+  if (!code) {
+    lobby.error = 'Room codes are 6 letters and numbers.';
+    return render();
+  }
+  void enterRoom(code);
+}
+
+async function copyInvite() {
+  const url = location.href;
+  try {
+    // Phones get the share sheet; desktops copy the link.
+    if (navigator.share && matchMedia('(hover: none)').matches) return await navigator.share({ title: 'Sea Battle', text: 'Join my Sea Battle room', url });
+    await navigator.clipboard.writeText(url);
+    lobby.copied = true;
+    render();
+    setTimeout(() => ((lobby.copied = false), render()), 2000);
+  } catch {
+    // Share sheet dismissed or clipboard blocked: the code is on screen to read out instead.
+  }
+}
+
+async function readyOnline() {
+  const s = session!;
+  waitingForPeer = true;
+  held = null;
+  scene.mine.setPreview([]);
+  log = hint('Fleet locked in. Waiting for your opponent to finish deploying…');
+  render();
+  let first: PlayerId;
+  try {
+    first = await agreeFirst(s);
+  } catch (e) {
+    return connectionLost(e);
+  }
+  if (s !== session) return;
+  waitingForPeer = false;
+  startBattle(new Match(fleet, s.opponent, first));
+}
+
+function opponentLeft() {
+  session = null;
+  if (screen === 'placing' || (screen === 'battle' && match?.state.winner === null)) {
+    notice = { title: 'Opponent left', body: 'Your opponent disconnected, so the match is over.' };
+    busy = false;
+    render();
+  }
+}
+
+/** A network failure mid-game ends the match with a notice. Anything else is a bug: let it surface. */
+function connectionLost(e: unknown) {
+  if (!session && !notice) throw e;
+  leaveSession();
+  notice ??= { title: 'Connection lost', body: sentence(e instanceof Error ? e.message : 'the connection to your opponent dropped') };
+  busy = false;
+  render();
+}
+
 function onButton(act: string) {
   switch (act) {
     case 'play':
-    case 'again':
       newPlacement();
       break;
+    case 'again':
+      // shortcut: online "play again" goes back to the lobby; an in-room rematch comes with M5.
+      if (session) openLobby();
+      else newPlacement();
+      break;
     case 'menu':
+      leaveSession();
+      setRoomInUrl(null);
       match = null;
+      notice = null;
       scene.reset();
       screen = 'title';
       focus('overview');
+      break;
+    case 'online':
+      openLobby();
+      break;
+    case 'create-room':
+      void enterRoom(newRoomCode());
+      break;
+    case 'leave-room':
+      openLobby();
+      break;
+    case 'copy-link':
+      void copyInvite();
       break;
     case 'howto':
       howTo = true;
@@ -206,6 +380,7 @@ function onButton(act: string) {
       howTo = false;
       break;
     case 'rotate':
+      if (waitingForPeer) break;
       if (held) {
         held = { ...held, dir: flip(held.dir) };
         previewPlacement();
@@ -215,6 +390,7 @@ function onButton(act: string) {
       }
       break;
     case 'random':
+      if (waitingForPeer) break;
       fleet = randomFleet(Math.random);
       held = null;
       scene.mine.setPreview([]);
@@ -222,13 +398,9 @@ function onButton(act: string) {
       log = hint(PLACING_HINT);
       break;
     case 'start':
-      if (held || validateFleet(fleet)) return;
-      match = new Match(fleet, aiBot());
-      shown = match.state;
-      scene.mine.setPreview([]);
-      screen = 'battle';
-      log = hint('Pick a target on the enemy grid.');
-      focus('enemy');
+      if (held || validateFleet(fleet) || waitingForPeer) return;
+      if (session) void readyOnline();
+      else startBattle(new Match(fleet, aiBot()));
       break;
     case 'view':
       focus(view === 'mine' ? 'enemy' : 'mine');
@@ -238,7 +410,9 @@ function onButton(act: string) {
 }
 
 function turnCard(): Pick<HudView, 'turnLabel' | 'banner' | 'tone'> {
-  if (screen === 'placing') return { turnLabel: 'Deployment', banner: 'Position your fleet', tone: 'green' };
+  if (screen === 'placing') {
+    return { turnLabel: session ? 'Deployment · online' : 'Deployment', banner: waitingForPeer ? 'Waiting for opponent' : 'Position your fleet', tone: 'green' };
+  }
   const state = match?.state;
   if (!state) return { turnLabel: '', banner: '', tone: 'green' };
   if (shown && shown.winner !== null) {
@@ -246,7 +420,7 @@ function turnCard(): Pick<HudView, 'turnLabel' | 'banner' | 'tone'> {
   }
   const turnLabel = `Turn ${Math.floor(state.log.length / 2) + 1}`;
   const turn = busy ? acting ?? state.turn : state.turn;
-  if (turn === THEM) return { turnLabel, banner: 'Enemy firing', tone: 'red' };
+  if (turn === THEM) return { turnLabel, banner: 'Enemy turn', tone: 'red' };
   return { turnLabel, banner: busy ? 'Firing' : 'Your move', tone: 'amber' };
 }
 
@@ -257,10 +431,13 @@ function render() {
   hud.render({
     screen,
     howTo,
+    lobby,
+    notice,
+    readyLabel: waitingForPeer ? 'Waiting…' : 'Ready',
     ...turnCard(),
     log,
     mode,
-    canStart: !held && validateFleet(fleet) === null,
+    canStart: !held && !waitingForPeer && validateFleet(fleet) === null,
     showRotate: mode === 'airstrike',
     viewLabel: view === 'mine' ? 'Enemy grid' : 'My fleet',
     fleets: state && shown ? { mine: fleetStatus(ME), enemy: fleetStatus(THEM) } : null,
@@ -300,7 +477,7 @@ canvas.addEventListener('pointerup', (e) => {
 });
 
 addEventListener('keydown', (e) => {
-  if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.repeat || e.metaKey || e.ctrlKey || e.altKey || e.target instanceof HTMLInputElement) return;
   const key = e.key.toLowerCase();
   if (howTo) {
     if (key === 'escape') onButton('close-howto');
@@ -315,4 +492,7 @@ addEventListener('keydown', (e) => {
   if (screen === 'battle' && slot >= 0 && slot <= SHIP_TYPES.length) selectMode(slot === 0 ? 'shot' : SHIPS[SHIP_TYPES[slot - 1]!].ability);
 });
 
-focus('overview');
+// Opening an invite link joins that room straight away.
+const invited = normalizeRoomCode(new URL(location.href).searchParams.get('room') ?? '');
+if (invited) void enterRoom(invited);
+else focus('overview');

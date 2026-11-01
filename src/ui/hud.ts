@@ -3,7 +3,7 @@ import type { Mode } from '../game/targeting';
 import type { PlayerStats } from '../game/stats';
 import { MODE_INFO } from './modes';
 
-export type Screen = 'title' | 'placing' | 'battle' | 'over';
+export type Screen = 'title' | 'lobby' | 'placing' | 'battle' | 'over';
 
 export interface AbilityView {
   mode: Mode;
@@ -22,8 +22,18 @@ export interface LogLine {
   kind: 'mine' | 'enemy' | 'hint';
 }
 
+export interface LobbyView {
+  stage: 'start' | 'waiting' | 'connecting';
+  code: string;
+  error: string;
+  copied: boolean;
+}
+
 export interface HudView {
   screen: Screen;
+  lobby: LobbyView;
+  notice: { title: string; body: string } | null;
+  readyLabel: string;
   howTo: boolean;
   turnLabel: string;
   banner: string;
@@ -41,6 +51,7 @@ export interface HudView {
 export interface HudHandlers {
   onButton(act: string): void;
   onMode(mode: Mode): void;
+  onJoin(code: string): void;
 }
 
 const STAT_ROWS: [string, (s: PlayerStats) => string][] = [
@@ -57,11 +68,15 @@ const el = <K extends keyof HTMLElementTagNameMap>(tag: K, className = '', text 
 const capitalize = (s: string) => s[0]!.toUpperCase() + s.slice(1);
 
 /** DOM overlay. Stateless: call `render` with the full view each time something changes. */
-export function createHud({ onButton, onMode }: HudHandlers): { render(view: HudView): void } {
+export function createHud({ onButton, onMode, onJoin }: HudHandlers): { render(view: HudView): void } {
   const $ = (id: string) => document.getElementById(id)!;
   for (const button of document.querySelectorAll<HTMLButtonElement>('[data-act]')) {
     button.addEventListener('click', () => onButton(button.dataset.act!));
   }
+  $('join-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    onJoin(($('join-code') as HTMLInputElement).value);
+  });
 
   $('howto-abilities').replaceChildren(
     ...SHIP_TYPES.map((type) => {
@@ -120,14 +135,27 @@ export function createHud({ onButton, onMode }: HudHandlers): { render(view: Hud
   return {
     render(v) {
       $('title').hidden = v.screen !== 'title';
-      $('over').hidden = v.screen !== 'over';
+      $('lobby').hidden = v.screen !== 'lobby';
+      $('over').hidden = v.screen !== 'over' || v.notice !== null;
+      $('notice').hidden = !v.notice;
+      if (v.notice) {
+        $('notice-title').textContent = v.notice.title;
+        $('notice-body').textContent = v.notice.body;
+      }
+      const waiting = v.lobby.stage !== 'start';
+      $('lobby-start').hidden = waiting;
+      $('lobby-wait').hidden = !waiting;
+      $('lobby-error').textContent = v.lobby.error;
+      $('room-code').textContent = v.lobby.code;
+      $('lobby-status').textContent = v.lobby.stage === 'waiting' ? 'Waiting for your opponent to join. Send them the link or the code.' : 'Connecting to your opponent…';
+      $('copy-label').textContent = v.lobby.copied ? 'Link copied' : 'Copy invite link';
       $('howto').hidden = !v.howTo;
       // Move focus into the sheet when it opens and back to where it was opened from when it closes.
       if (v.howTo !== howToOpen) {
         howToOpen = v.howTo;
         document.querySelector<HTMLButtonElement>(v.howTo ? '[data-act="close-howto"]' : '[data-act="howto"]')?.focus();
       }
-      $('hud').hidden = v.screen === 'title' || v.screen === 'over';
+      $('hud').hidden = v.screen === 'title' || v.screen === 'lobby' || v.screen === 'over';
       $('placing').hidden = v.screen !== 'placing';
       $('battle').hidden = v.screen !== 'battle';
 
@@ -136,6 +164,7 @@ export function createHud({ onButton, onMode }: HudHandlers): { render(view: Hud
       ($('banner').parentElement as HTMLElement).dataset.tone = v.tone;
       $('log').replaceChildren(...v.log.map((line) => el('p', line.kind, line.text)));
       ($('start') as HTMLButtonElement).disabled = !v.canStart;
+      $('start').textContent = v.readyLabel;
       $('rotate-battle').hidden = !v.showRotate;
       $('view-toggle').innerHTML = `${v.viewLabel} <kbd>V</kbd>`; // constant labels
 

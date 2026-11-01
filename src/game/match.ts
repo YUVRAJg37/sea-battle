@@ -7,12 +7,14 @@ import {
 export const ME: PlayerId = 0;
 export const THEM: PlayerId = 1;
 
-/** The other side of a match: a bot today, a remote peer later. Its fleet stays hidden. */
+/** The other side of a match: a bot or a remote player. Its fleet stays hidden. */
 export interface Opponent {
   /** Resolve our action against their hidden fleet. */
   resolve(state: GameState, action: Action): Promise<Outcome>;
   /** Pick their next action. */
   chooseAction(state: GameState): Promise<Action>;
+  /** Tell them what their action did to our fleet (remote players need this; bots don't). */
+  sendOutcome?(outcome: Outcome): void;
 }
 
 /** One match from this device's point of view: our fleet, the shared state, and the opponent. */
@@ -31,7 +33,10 @@ export class Match {
 
   async opponentTurn(): Promise<TurnRecord> {
     const action = await this.opponent.chooseAction(this.state);
-    return this.commit(action, resolveAction(this.fleet, this.state.players[ME].marks, action));
+    const outcome = resolveAction(this.fleet, this.state.players[ME].marks, action);
+    const record = this.commit(action, outcome); // throws on an illegal action, before we reply
+    this.opponent.sendOutcome?.(outcome);
+    return record;
   }
 
   private commit(action: Action, outcome: Outcome): TurnRecord {

@@ -19,11 +19,39 @@
         <p class="lede">Five ships, five weapons. Find their fleet before they find yours.</p>
         <nav class="menu" aria-label="Main menu">
           <button data-act="play" class="menu-item primary"><span>Play vs computer</span><kbd>Enter</kbd></button>
-          <button class="menu-item" disabled><span>Play online</span><small>Coming soon</small></button>
+          <button data-act="online" class="menu-item"><span>Play online</span><small>With a friend</small></button>
           <button data-act="howto" class="menu-item"><span>How to play</span></button>
         </nav>
       </div>
-      <p class="build">v0.5 · single player</p>
+      <p class="build">v0.6</p>
+    </section>
+
+    <section id="lobby" class="title-screen" hidden>
+      <div class="title-block">
+        <p class="meta">Play online</p>
+        <h1 class="wordmark small">Find a<br />rival</h1>
+        <div id="lobby-start">
+          <p class="lede">Create a room and send the link to a friend, or enter the code they sent you.</p>
+          <nav class="menu" aria-label="Online">
+            <button data-act="create-room" class="menu-item primary"><span>Create room</span></button>
+            <form id="join-form" class="join">
+              <input id="join-code" placeholder="Room code" maxlength="6" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Room code" />
+              <button class="btn" type="submit">Join</button>
+            </form>
+            <p id="lobby-error" class="error" role="alert"></p>
+            <button data-act="menu" class="menu-item"><span>Back</span></button>
+          </nav>
+        </div>
+        <div id="lobby-wait" hidden>
+          <p id="lobby-status" class="lede" role="status"></p>
+          <p class="meta">Room code</p>
+          <p id="room-code" class="room-code"></p>
+          <nav class="menu">
+            <button data-act="copy-link" class="menu-item primary"><span id="copy-label">Copy invite link</span></button>
+            <button data-act="leave-room" class="menu-item"><span>Cancel</span></button>
+          </nav>
+        </div>
+      </div>
     </section>
 
     <div id="hud" hidden>
@@ -82,6 +110,17 @@
         <div class="actions">
           <button data-act="again" class="btn primary">Play again <kbd>Enter</kbd></button>
           <button data-act="menu" class="btn">Main menu</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="notice" class="over-screen" hidden>
+      <div class="report" role="alertdialog" aria-labelledby="notice-title" aria-describedby="notice-body">
+        <p class="meta">Online match</p>
+        <h1 id="notice-title"></h1>
+        <p id="notice-body" class="lede"></p>
+        <div class="actions">
+          <button data-act="menu" class="btn primary">Main menu</button>
         </div>
       </div>
     </section>

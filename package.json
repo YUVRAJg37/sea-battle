@@ -6,7 +6,8 @@
     "typecheck": "tsc --noEmit",
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "server": "npm --prefix server run dev"
   },
   "type": "module",
   "devDependencies": {
