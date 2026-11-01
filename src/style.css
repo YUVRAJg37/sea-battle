@@ -1,10 +1,31 @@
+:root {
+  --navy-950: #07121e;
+  --navy-900: #0b1a2b;
+  --navy-800: #102438;
+  --navy-700: #13314a;
+  --line: #1e3a5a;
+  --green: #7fe0a6;
+  --green-dim: #2b6f5a;
+  --amber: #ffc857;
+  --red: #e05b4f;
+  --text: #d8e6f0;
+  --muted: #7f97ab;
+  --panel: rgba(11, 26, 43, 0.88);
+  --font: 'Chakra Petch', ui-monospace, 'SF Mono', Menlo, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
 html,
 body {
   margin: 0;
   height: 100%;
   overflow: hidden;
-  background: #87b5d6;
-  font-family: system-ui, -apple-system, sans-serif;
+  background: var(--navy-900);
+  color: var(--text);
+  font-family: var(--font);
 }
 
 canvas {
@@ -14,6 +35,215 @@ canvas {
   touch-action: none;
 }
 
+[hidden] {
+  display: none !important;
+}
+
+h1,
+h2 {
+  margin: 0;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+h1 {
+  font-size: clamp(32px, 9vw, 52px);
+  color: var(--green);
+}
+
+h2 {
+  font-size: 22px;
+  color: var(--green);
+}
+
+.kicker {
+  margin: 0 0 4px;
+  color: var(--amber);
+  font-size: 13px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+}
+
+.sub {
+  margin: 8px 0 0;
+  color: var(--muted);
+}
+
+/* Buttons */
+
+button {
+  min-height: 44px;
+  padding: 10px 16px;
+  border: 1px solid var(--green-dim);
+  border-radius: 4px;
+  background: var(--navy-700);
+  color: var(--green);
+  font: inherit;
+  font-size: 15px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  border-color: var(--green);
+}
+
+button:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+}
+
+button.primary {
+  border-color: var(--amber);
+  background: var(--amber);
+  color: #3a2a00;
+  font-weight: 600;
+}
+
+button:disabled {
+  border-color: var(--line);
+  background: var(--navy-800);
+  color: var(--muted);
+  cursor: default;
+}
+
+button small {
+  margin-left: 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+kbd {
+  margin-left: 6px;
+  padding: 0 4px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  font: inherit;
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+@media (hover: none) {
+  kbd {
+    display: none;
+  }
+}
+
+/* Full-screen panels (title, how to play, battle report) */
+
+.screen {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.screen.dim {
+  background: rgba(7, 18, 30, 0.6);
+}
+
+.panel {
+  width: min(100%, 380px);
+  max-height: 100%;
+  overflow-y: auto;
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  text-align: center;
+}
+
+.panel.wide {
+  width: min(100%, 520px);
+  text-align: left;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.rules {
+  padding-left: 20px;
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.abilities-list {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 20px;
+  padding: 0;
+  list-style: none;
+}
+
+.abilities-list li {
+  display: grid;
+  grid-template-columns: 32px 1fr;
+  gap: 2px 10px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+
+.abilities-list svg {
+  grid-row: span 2;
+  width: 28px;
+  height: 28px;
+  color: var(--green);
+}
+
+.abilities-list strong {
+  color: var(--green);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.abilities-list span {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+#stats {
+  width: 100%;
+  margin-top: 20px;
+  border-collapse: collapse;
+  font-size: 15px;
+}
+
+#stats th,
+#stats td {
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--line);
+}
+
+#stats th {
+  color: var(--muted);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 12px;
+}
+
+#stats td:first-child {
+  text-align: left;
+  color: var(--muted);
+}
+
+#stats td + td {
+  color: var(--green);
+}
+
+/* In-game HUD */
+
 #hud {
   position: fixed;
   inset: 0;
@@ -21,22 +251,91 @@ canvas {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding: calc(12px + env(safe-area-inset-top)) 16px calc(12px + env(safe-area-inset-bottom));
+  padding: calc(10px + env(safe-area-inset-top)) 16px calc(10px + env(safe-area-inset-bottom));
+}
+
+#topbar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+#banner {
+  padding: 4px 14px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  background: var(--panel);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+#banner[data-tone='amber'] {
+  color: var(--amber);
+}
+
+#banner[data-tone='red'] {
+  color: var(--red);
+}
+
+#banner[data-tone='green'] {
+  color: var(--green);
 }
 
 #status {
-  align-self: center;
   max-width: 100%;
-  padding: 8px 14px;
-  border-radius: 10px;
-  background: rgba(10, 30, 50, 0.75);
-  color: #fff;
-  font-size: 15px;
+  padding: 6px 12px;
+  border-radius: 3px;
+  background: var(--panel);
+  font-size: 14px;
   text-align: center;
   white-space: pre-line;
 }
 
-#panel > div,
+#status:empty {
+  display: none;
+}
+
+#fleets {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px 20px;
+}
+
+.fleet {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  border-radius: 3px;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.ships {
+  display: flex;
+  gap: 4px;
+}
+
+.ship {
+  height: 8px;
+  border-radius: 1px 4px 4px 1px;
+  background: var(--green);
+}
+
+.ship.sunk {
+  background: var(--red);
+  opacity: 0.5;
+}
+
+#panel,
+#panel .row,
 #abilities {
   display: flex;
   flex-wrap: wrap;
@@ -45,45 +344,73 @@ canvas {
   pointer-events: auto;
 }
 
-#panel > div[hidden] {
-  display: none;
+#battle {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
 }
 
 #abilities {
-  flex-basis: 100%;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
 }
 
-button {
-  min-height: 44px;
-  padding: 10px 14px;
-  border: 0;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.92);
-  color: #123;
-  font: inherit;
-  font-size: 15px;
-  cursor: pointer;
+@media (max-width: 520px) {
+  #abilities {
+    grid-template-columns: repeat(3, 1fr);
+  }
 }
 
-button.primary {
-  background: #ffb300;
+.ability {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-height: 64px;
+  padding: 8px 4px;
+  overflow: hidden;
+  font-size: 12px;
+}
+
+.ability svg {
+  width: 24px;
+  height: 24px;
+}
+
+.ability.active {
+  border-color: var(--amber);
+  background: #2a3a2c;
+  color: var(--amber);
+}
+
+/* Cooldown sweep: --p is the fraction of the cooldown still to go. */
+.ability.cooling::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: conic-gradient(rgba(7, 18, 30, 0.7) calc(var(--p) * 360deg), transparent 0);
+}
+
+.ability .badge {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  z-index: 1;
+  color: var(--amber);
+  font-size: 12px;
   font-weight: 600;
 }
 
-button.active {
-  outline: 3px solid #ffb300;
+.ability.lost {
+  color: var(--red);
+  text-decoration: line-through;
 }
 
-button:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-
-button small {
-  margin-left: 6px;
-  opacity: 0.7;
-}
-
-button:focus-visible {
-  outline: 3px solid #0d47a1;
+.ability.lost .badge {
+  color: var(--red);
+  text-decoration: none;
 }

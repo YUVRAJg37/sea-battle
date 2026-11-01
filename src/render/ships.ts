@@ -36,20 +36,27 @@ function part(geometry: THREE.BufferGeometry, x: number, y: number, size: [numbe
   return mesh;
 }
 
-/** Low-poly ship placed in board-local coordinates. */
+/**
+ * Low-poly ship placed in board-local coordinates. The outer group holds the placement;
+ * `userData.body` is the inner group that the sinking animation tilts and lowers.
+ */
 export function createShip(ship: Ship): THREE.Group {
   const length = SHIPS[ship.type].length;
-  const group = new THREE.Group();
+  const body = new THREE.Group();
   const isSub = ship.type === 'submarine';
 
-  group.add(new THREE.Mesh(hull(length), isSub ? subMat : hullMat));
+  body.add(new THREE.Mesh(hull(length), isSub ? subMat : hullMat));
   if (isSub) {
-    group.add(part(box, length * 0.45, HULL_HEIGHT + 0.15, [0.5, 0.3, 0.25]));
+    body.add(part(box, length * 0.45, HULL_HEIGHT + 0.15, [0.5, 0.3, 0.25]));
   } else {
     const towerLength = Math.min(length * 0.25, 1.1);
-    group.add(part(box, length * 0.38, HULL_HEIGHT + 0.17, [towerLength, 0.34, 0.4]));
-    if (length >= 3) group.add(part(gun, length * 0.72, HULL_HEIGHT + 0.07, [1, 1, 1]));
+    body.add(part(box, length * 0.38, HULL_HEIGHT + 0.17, [towerLength, 0.34, 0.4]));
+    if (length >= 3) body.add(part(gun, length * 0.72, HULL_HEIGHT + 0.07, [1, 1, 1]));
   }
+
+  const group = new THREE.Group();
+  group.add(body);
+  group.userData = { ship, body };
 
   // Cell (0,0) spans [-half, -half + 1] on both axes; the hull width is centered on the cell middle.
   const half = BOARD_SIZE / 2;

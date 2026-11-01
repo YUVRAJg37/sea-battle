@@ -1,11 +1,12 @@
 import * as THREE from 'three';
+import { THEME } from './theme';
 
 /** Low-poly animated sea. Returns a per-frame update function. */
 export function createOcean(scene: THREE.Scene): (time: number) => void {
   const geometry = new THREE.PlaneGeometry(140, 140, 70, 70).rotateX(-Math.PI / 2);
   const mesh = new THREE.Mesh(
     geometry,
-    new THREE.MeshStandardMaterial({ color: 0x1f6fa8, flatShading: true, roughness: 0.55 }),
+    new THREE.MeshStandardMaterial({ color: THEME.sea, flatShading: true, roughness: 0.5 }),
   );
   mesh.position.y = -0.4; // below the boards so waves never cover the grid
   scene.add(mesh);
