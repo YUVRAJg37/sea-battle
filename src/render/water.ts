@@ -63,9 +63,6 @@ const fragmentShader = /* glsl */ `
     float spec = pow(max(dot(reflect(-uSunDir, n), viewDir), 0.0), 40.0);
     color += step(0.45, spec) * vec3(1.0, 0.85, 0.65) * 0.55;
 
-    float sparkle = hash(floor(vWorld.xz * 5.0) + floor(uTime * 2.5));
-    color += step(0.998, sparkle) * crest * 0.35;
-
     gl_FragColor = vec4(color, 1.0);
     #include <fog_fragment>
   }

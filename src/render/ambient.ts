@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { THEME } from './theme';
 
 const GULLS = 5;
+const GULL_CENTER_Z = -28; // far behind the boards: seen on the title horizon, never over the grid
 const WISPS = 10;
 const WISP_RANGE = 40; // wisps drift across x ∈ [-range/2, range/2] and wrap
 
@@ -51,13 +52,19 @@ function skyDome(sun: THREE.Vector3): THREE.Mesh {
   );
 }
 
-/** A gull: two flat wings that flap, circling high over the boards. */
+// Swept-back wing as a thin triangle: root along the body, tip trailing behind. Flat in the xz plane.
+const wingGeo = new THREE.BufferGeometry().setFromPoints([
+  new THREE.Vector3(0, 0, -0.05),
+  new THREE.Vector3(0, 0, 0.06),
+  new THREE.Vector3(0.32, 0, 0.1),
+]);
+
+/** A gull: two swept wings that flap, circling high over the boards. */
 function gull(): THREE.Group {
-  const wingGeo = new THREE.PlaneGeometry(0.35, 0.08).translate(0.175, 0, 0);
-  const material = new THREE.MeshBasicMaterial({ color: 0xdfe8ee, side: THREE.DoubleSide, fog: false });
+  const material = new THREE.MeshBasicMaterial({ color: 0x8fa3b3, side: THREE.DoubleSide });
   const left = new THREE.Mesh(wingGeo, material);
   const right = new THREE.Mesh(wingGeo, material);
-  right.rotation.y = Math.PI;
+  right.scale.x = -1; // mirror, so both tips trail behind
   const bird = new THREE.Group();
   bird.add(left, right);
   bird.userData = { left, right };
@@ -89,7 +96,7 @@ export function createAmbient(scene: THREE.Scene, sunDirection: THREE.Vector3): 
 
   const gulls = Array.from({ length: GULLS }, (_, i) => {
     const bird = gull();
-    bird.userData.orbit = { radius: 9 + i * 2.5, height: 7 + Math.random() * 3, speed: 0.12 + Math.random() * 0.08, phase: Math.random() * Math.PI * 2 };
+    bird.userData.orbit = { radius: 5 + i * 2, height: 3 + Math.random() * 2, speed: 0.12 + Math.random() * 0.08, phase: Math.random() * Math.PI * 2 };
     scene.add(bird);
     return bird;
   });
@@ -102,8 +109,8 @@ export function createAmbient(scene: THREE.Scene, sunDirection: THREE.Vector3): 
     for (const bird of gulls) {
       const { radius, height, speed, phase } = bird.userData.orbit;
       const a = time * speed + phase;
-      bird.position.set(Math.cos(a) * radius, height + Math.sin(time * 0.5 + phase) * 0.4, Math.sin(a) * radius - 4);
-      bird.rotation.y = -a; // face along the circle
+      bird.position.set(Math.cos(a) * radius, height + Math.sin(time * 0.5 + phase) * 0.4, Math.sin(a) * radius + GULL_CENTER_Z);
+      bird.rotation.y = Math.PI - a; // nose (−z) along the direction of travel
       const flap = Math.sin(time * 6 + phase) * 0.5;
       bird.userData.left.rotation.z = flap;
       bird.userData.right.rotation.z = -flap;
