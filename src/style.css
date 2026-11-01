@@ -460,10 +460,17 @@ button:focus-visible {
   background: #c99a3a;
 }
 
-/* The amber buttons stay amber on hover; only the dark plates lighten. */
+/* Amber buttons go dark on hover, with white text so they stay readable. */
 .menu-item.primary:hover:not(:disabled),
 .slot.fire:hover:not(:disabled) {
-  background: #ffd57a;
+  background: var(--plate-hi);
+}
+
+.menu-item.primary:hover:not(:disabled),
+.slot.fire:hover:not(:disabled) svg,
+.slot.fire:hover:not(:disabled) .name,
+.slot.fire:hover:not(:disabled) .key {
+  color: var(--ink);
 }
 
 .slot:disabled {
