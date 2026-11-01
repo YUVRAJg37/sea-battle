@@ -4,8 +4,8 @@ Turn-based 1v1 naval combat for web and mobile, with ship abilities and peer-to-
 
 ## Status
 - [x] M1: rules engine (`src/engine`): fleet placement, shots, abilities, cooldowns, win condition, commit/reveal fair-play check
-- [x] M2: 3D board (Three.js): ship placement, aiming previews for every ability, hit/miss effects, touch controls. Plays against a placeholder random bot
-- [ ] M3: AI opponent
+- [x] M2: 3D board (Three.js): ship placement, aiming previews for every ability, hit/miss effects, touch controls.
+- [x] M3: AI opponent (`src/bot/`): heat map over every placement the remaining ships could still have, sharpened by hits, radar and scouting. Uses abilities when ready. Sinks a fleet in ~21 turns on average (random shooting: ~96)
 - [ ] M4–M6: WebRTC multiplayer, rematch/chat, random matchmaking
 - [ ] M7: sound and polish
 

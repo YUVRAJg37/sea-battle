@@ -6,7 +6,7 @@ import {
 import { Match, ME, THEM } from './game/match';
 import { aim, type Mode } from './game/targeting';
 import { describeTurn } from './game/describe';
-import { randomBot } from './bot/randomBot';
+import { aiBot } from './bot/ai';
 import { createStage } from './render/stage';
 import { createOcean } from './render/ocean';
 import { Board3D } from './render/board3d';
@@ -201,7 +201,7 @@ function onButton(act: string) {
       break;
     case 'start':
       if (held || validateFleet(fleet)) return;
-      match = new Match(fleet, randomBot());
+      match = new Match(fleet, aiBot());
       mine.setPreview([]);
       status = 'Your turn: pick a target on the enemy board.';
       focus('enemy');

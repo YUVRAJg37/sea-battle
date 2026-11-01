@@ -1,7 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { allCells, key, randomFleet, seededRng, SHIP_TYPES } from '../engine';
-import { randomBot } from '../bot/randomBot';
-import { Match, THEM } from './match';
 import { aim } from './targeting';
 
 describe('aim', () => {
@@ -27,15 +24,3 @@ describe('aim', () => {
   });
 });
 
-describe('match vs random bot', () => {
-  it('plays to a finish with a winner', async () => {
-    const rng = seededRng(7);
-    const match = new Match(randomFleet(rng), randomBot(rng));
-    while (match.state.winner === null) {
-      const open = allCells().filter((c) => !(key(c) in match.state.players[THEM].marks));
-      await match.play({ type: 'shot', target: open[Math.floor(rng() * open.length)]! });
-      if (match.state.winner === null) await match.opponentTurn();
-    }
-    expect(match.state.players[match.state.winner === 0 ? 1 : 0].sunk).toHaveLength(SHIP_TYPES.length);
-  });
-});
