@@ -15,11 +15,12 @@ export function describeTurn({ action, outcome }: TurnRecord, byMe: boolean): st
       ? action.from === 'left' || action.from === 'right'
         ? `launched a torpedo along row ${action.lane + 1}`
         : `launched a torpedo ${action.from === 'top' ? 'down' : 'up'} column ${String.fromCharCode(65 + action.lane)}`
-    : 'sent a scout';
+    : `fired a ricochet at ${cellName(action.target)}`;
   const hits = outcome.hits.length;
   const result =
     action.type === 'radar' ? `${outcome.radarCount} ship cells nearby`
-    : action.type === 'scout' ? (outcome.scouted ? `ship spotted at ${cellName(outcome.scouted)}` : 'nothing found')
+    : action.type === 'ricochet' && outcome.misses.length === 2 ? `bounced to ${cellName(outcome.misses[1]!)}, miss`
+    : action.type === 'ricochet' && outcome.misses.length === 1 && hits === 1 ? `bounced to ${cellName(outcome.hits[0]!)}, hit`
     : hits === 0 ? 'miss'
     : hits === 1 ? 'hit'
     : `${hits} hits`;

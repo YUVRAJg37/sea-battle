@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { BOARD_SIZE, SHIPS, type Ship } from '../engine';
+import { BOARD_SIZE, pieceLength, type Ship } from '../engine';
 import { BEAM, warshipGeometry } from './models/warships';
 import { outline, toonMaterial } from './shipMaterial';
 
@@ -37,7 +37,7 @@ export class ShipView {
   private sinkProgress: number | null = null;
 
   constructor(readonly ship: Ship) {
-    const length = SHIPS[ship.type].length;
+    const length = pieceLength(ship.type);
     this.material = toonMaterial();
     const geometry = warshipGeometry(ship.type, 'naval');
     this.body = new THREE.Mesh(geometry, this.material);
@@ -69,7 +69,7 @@ export class ShipView {
 
   /** World position of the ship's middle, at deck height. */
   center(): THREE.Vector3 {
-    return this.group.localToWorld(new THREE.Vector3(SHIPS[this.ship.type].length / 2, 0.4, 0));
+    return this.group.localToWorld(new THREE.Vector3(pieceLength(this.ship.type) / 2, 0.4, 0));
   }
 
   update(dt: number, time: number): void {

@@ -125,9 +125,10 @@ export class Sound {
     this.tone('sine', 1400, 1350, { duration: 0.7, gain: 0.1, at: 0.28 }); // echo
   }
 
-  scout(): void {
-    this.tone('triangle', 880, 880, { duration: 0.12, gain: 0.2 });
-    this.tone('triangle', 1320, 1320, { duration: 0.2, gain: 0.2, at: 0.13 });
+  /** A shell skipping off the water: a metallic zing and a light slap. */
+  ricochet(): void {
+    this.tone('triangle', 2600, 900, { duration: 0.28, gain: 0.22 });
+    this.hiss('bandpass', 2500, 900, { duration: 0.25, gain: 0.4, attack: 0.005 });
   }
 
   sink(): void {

@@ -1,14 +1,13 @@
-import { AIRSTRIKE_LENGTH, RADAR_RADIUS } from './config';
-import { area, key, lane, line, type Cell, type Marks } from './grid';
-import { isSunk, shipAt, shipCells, type Fleet } from './fleet';
+import { AIRSTRIKE_LENGTH, RADAR_RADIUS, RICOCHET_SKIP } from './config';
+import { area, inBounds, key, lane, line, toward, type Cell, type Edge, type Marks } from './grid';
+import { isSunk, shipAt, type Fleet } from './fleet';
 import type { Action, Outcome } from './actions';
-import type { Rng } from './rng';
 
 /**
  * Runs on the defender's side: works out what an action does to their fleet.
  * `marks` are the shots this board has already received.
  */
-export function resolveAction(fleet: Fleet, marks: Marks, action: Action, rng: Rng = Math.random): Outcome {
+export function resolveAction(fleet: Fleet, marks: Marks, action: Action): Outcome {
   switch (action.type) {
     case 'shot':
       return fire(fleet, marks, [action.target]);
@@ -19,10 +18,12 @@ export function resolveAction(fleet: Fleet, marks: Marks, action: Action, rng: R
     case 'torpedo':
       return fire(fleet, marks, torpedoPath(fleet, marks, lane(action.lane, action.from)));
     case 'radar':
-      return { ...empty(), radarCount: area(action.center, RADAR_RADIUS).filter((c) => shipAt(fleet, c)).length };
-    case 'scout': {
-      const targets = fleet.flatMap(shipCells).filter((c) => !(key(c) in marks));
-      return { ...empty(), scouted: targets[Math.floor(rng() * targets.length)] };
+      // Radar sees through the decoy.
+      return { ...empty(), radarCount: area(action.center, RADAR_RADIUS).filter((c) => { const s = shipAt(fleet, c); return s && s.type !== 'decoy'; }).length };
+    case 'ricochet': {
+      const first = fire(fleet, marks, [action.target]);
+      const landing = first.hits.length ? undefined : ricochetLanding(action.target, action.toward, applyOutcome(marks, first));
+      return landing ? fire(fleet, marks, [action.target, landing]) : first;
     }
   }
 }
@@ -45,6 +46,17 @@ function fire(fleet: Fleet, marks: Marks, cells: Cell[]): Outcome {
   const after = applyOutcome(marks, { hits, misses, sunk: [] });
   const sunk = fleet.filter((s) => !isSunk(s, marks) && isSunk(s, after));
   return { hits, misses, sunk };
+}
+
+/**
+ * Where a missed ricochet comes down: RICOCHET_SKIP cells on, sliding further past cells already shot.
+ * Undefined when it skips off the board. Depends only on public marks, so both sides agree on it.
+ */
+export function ricochetLanding(from: Cell, edge: Edge, marks: Marks): Cell | undefined {
+  for (let c = toward(from, edge, RICOCHET_SKIP); inBounds(c); c = toward(c, edge)) {
+    if (!(key(c) in marks)) return c;
+  }
+  return undefined;
 }
 
 /** The torpedo runs through water and wrecks until it hits the first unhit ship cell. */

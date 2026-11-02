@@ -1,30 +1,31 @@
-import { BOARD_SIZE, SHIPS, SHIP_TYPES, type ShipType } from './config';
+import { BOARD_SIZE, PIECE_TYPES, pieceLength, type PieceType } from './config';
 import { inBounds, key, line, type Cell, type Dir, type Marks } from './grid';
 import type { Rng } from './rng';
 
 export interface Ship {
-  type: ShipType;
+  type: PieceType;
   origin: Cell;
   dir: Dir;
 }
 
-export type Fleet = Ship[];
+export type Fleet = Ship[]; // the five warships and the decoy
 
-export const shipCells = (ship: Ship): Cell[] => line(ship.origin, ship.dir, SHIPS[ship.type].length);
+export const shipCells = (ship: Ship): Cell[] => line(ship.origin, ship.dir, pieceLength(ship.type));
 
 export function shipAt(fleet: Fleet, cell: Cell): Ship | undefined {
   const k = key(cell);
   return fleet.find((s) => shipCells(s).some((c) => key(c) === k));
 }
 
+/** The decoy never sinks. */
 export const isSunk = (ship: Ship, marks: Marks): boolean =>
-  shipCells(ship).every((c) => marks[key(c)] === 'hit');
+  ship.type !== 'decoy' && shipCells(ship).every((c) => marks[key(c)] === 'hit');
 
 /** Returns a reason the fleet is invalid, or null if it is valid. */
 export function validateFleet(fleet: Fleet): string | null {
-  if (fleet.length !== SHIP_TYPES.length) return 'wrong number of ships';
+  if (fleet.length !== PIECE_TYPES.length) return 'wrong number of ships';
   const occupied = new Set<string>();
-  for (const type of SHIP_TYPES) {
+  for (const type of PIECE_TYPES) {
     const ships = fleet.filter((s) => s.type === type);
     if (ships.length !== 1) return `need exactly one ${type}`;
     const ship = ships[0]!;
@@ -40,7 +41,7 @@ export function validateFleet(fleet: Fleet): string | null {
 
 export function randomFleet(rng: Rng): Fleet {
   const fleet: Fleet = [];
-  for (const type of SHIP_TYPES) {
+  for (const type of PIECE_TYPES) {
     for (;;) {
       const ship: Ship = {
         type,

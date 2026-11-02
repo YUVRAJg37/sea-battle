@@ -1,5 +1,5 @@
 import { Color } from 'three';
-import type { ShipType } from '../../engine';
+import type { PieceType } from '../../engine';
 
 /** Paint roles every warship model uses. */
 export interface Palette {
@@ -68,15 +68,16 @@ const NAVAL: Palette = {
   sub: 0x3a4550, // dark, but light enough to read against the sea
 };
 
-const VIVID_HULLS: Record<ShipType, number> = {
+const VIVID_HULLS: Record<PieceType, number> = {
   carrier: 0x3a7bd5,
   battleship: 0xd64545,
   cruiser: 0x2eb872,
   destroyer: 0xf2b632,
   submarine: 0x7b5cd6,
+  decoy: 0xff8a3d,
 };
 
-export function palette(name: PaletteName, type: ShipType): Palette {
+export function palette(name: PaletteName, type: PieceType): Palette {
   if (name === 'teamMine') return TEAM_MINE;
   if (name === 'teamEnemy') return TEAM_ENEMY;
   if (name === 'naval') return NAVAL;

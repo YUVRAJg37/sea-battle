@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { SHIPS, type ShipType } from '../../engine';
+import { SHIPS, type PieceType } from '../../engine';
 import { ball, barrel, block, capsule, deckRing, hull, merge, paint, place, post, strip, type Part } from './parts';
 import { palette, type Palette, type PaletteName } from './palettes';
 
@@ -232,6 +232,26 @@ function submarine(p: Palette): Part[] {
   return parts;
 }
 
+/**
+ * The decoy: a raft on two floats, dressed up from afar as a gunboat with a plywood gun, a dummy
+ * bridge and a radar reflector on a pole, the trick real decoys use to look big on radar.
+ */
+function decoy(p: Palette): Part[] {
+  const deck = 0.07;
+  return [
+    capsule(0.07, 0.62, [0.5, 0.01, -0.13], p.trim),
+    capsule(0.07, 0.62, [0.5, 0.01, 0.13], p.trim),
+    block([0.78, 0.035, 0.36], [0.5, deck, 0], p.deck, 0.92),
+    block([0.2, 0.15, 0.22], [0.36, deck + 0.09, 0], p.superstructure, 0.8), // dummy bridge
+    strip([0.012, 0.035, 0.16], [0.46, deck + 0.13, 0], p.window),
+    block([0.16, 0.07, 0.15], [0.66, deck + 0.05, 0], p.superstructure, 0.75), // plywood gun mount
+    barrel(0.02, 0.24, [0.74, deck + 0.07, 0], p.gun),
+    post(0.012, 0.3, [0.24, deck + 0.15, 0], p.trim, 6),
+    paint(new THREE.OctahedronGeometry(0.06).translate(0.24, deck + 0.33, 0), 0xd8dee4), // radar reflector
+    strip([0.1, 0.06, 0.006], [0.18, deck + 0.24, 0], p.accent), // pennant
+  ];
+}
+
 /** Strike fighter for the airstrike, nose along +x, about 0.9 long. */
 function aircraft(p: Palette): Part[] {
   return [
@@ -252,11 +272,11 @@ export function aircraftGeometry(): THREE.BufferGeometry {
   return (aircraftCache ??= merge(aircraft(palette('naval', 'carrier'))));
 }
 
-const BUILDERS: Record<ShipType, (p: Palette) => Part[]> = { carrier, battleship, cruiser, destroyer, submarine };
+const BUILDERS: Record<PieceType, (p: Palette) => Part[]> = { carrier, battleship, cruiser, destroyer, submarine, decoy };
 const cache = new Map<string, THREE.BufferGeometry>();
 
 /** One merged, vertex-colored geometry per ship type and palette (cached). */
-export function warshipGeometry(type: ShipType, paletteName: PaletteName = 'naval'): THREE.BufferGeometry {
+export function warshipGeometry(type: PieceType, paletteName: PaletteName = 'naval'): THREE.BufferGeometry {
   const key = `${type}:${paletteName}`;
   let geometry = cache.get(key);
   if (!geometry) cache.set(key, (geometry = merge(BUILDERS[type](palette(paletteName, type)))));
@@ -264,4 +284,4 @@ export function warshipGeometry(type: ShipType, paletteName: PaletteName = 'nava
 }
 
 /** Hull width at midships, used to size the foam ring around each ship. */
-export const BEAM: Record<ShipType, number> = { carrier: 0.8, battleship: 0.66, cruiser: 0.58, destroyer: 0.5, submarine: 0.4 };
+export const BEAM: Record<PieceType, number> = { carrier: 0.8, battleship: 0.66, cruiser: 0.58, destroyer: 0.5, submarine: 0.4, decoy: 0.42 };

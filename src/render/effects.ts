@@ -105,12 +105,11 @@ export class Effects {
     this.fires.push({ at: at.clone(), clock: Math.random() * FIRE_INTERVAL });
   }
 
-  /** A glowing shell arcing from `from` to `to`. Resolves on impact. */
-  async shell(from: THREE.Vector3, to: THREE.Vector3): Promise<void> {
+  /** A glowing shell arcing from `from` to `to`. Resolves on impact. A low `height` makes a quick skip. */
+  async shell(from: THREE.Vector3, to: THREE.Vector3, height = 2.5 + from.distanceTo(to) * 0.25): Promise<void> {
     const mesh = new THREE.Mesh(shellGeo, shellMat);
     this.scene.add(mesh);
-    const height = 2.5 + from.distanceTo(to) * 0.25;
-    await this.animate(0.9, (t) => {
+    await this.animate(height < 1 ? 0.45 : 0.9, (t) => {
       mesh.position.lerpVectors(from, to, t).y += height * 4 * t * (1 - t);
       this.glow.spawn(mesh.position, v3(0, 0, 0), 0xffb060, { life: 0.25, size: 0.18 });
     });

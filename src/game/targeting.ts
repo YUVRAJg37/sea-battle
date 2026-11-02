@@ -1,6 +1,6 @@
 import {
-  AIRSTRIKE_LENGTH, BOARD_SIZE, RADAR_RADIUS, area, lane, line, sameCell,
-  type Ability, type Action, type Cell, type Dir, type Edge,
+  AIRSTRIKE_LENGTH, BOARD_SIZE, RADAR_RADIUS, area, key, lane, line, ricochetLanding, sameCell,
+  type Ability, type Action, type Cell, type Dir, type Edge, type Marks,
 } from '../engine';
 
 /** What the player has selected to fire: a normal shot or an ability. */
@@ -13,9 +13,10 @@ export interface Aim {
 
 /**
  * Turns the selected mode and the cell under the pointer into a preview and an action. `dir`
- * orients the airstrike; `side` is the edge the torpedo launches from.
+ * orients the airstrike; `side` is the edge the torpedo launches from, or the ricochet bounces toward.
+ * `marks` are the enemy board's shots so far, to show where a missed ricochet would land.
  */
-export function aim(mode: Mode, cell: Cell, dir: Dir, salvoFirst: Cell | null = null, side: Edge = 'left'): Aim {
+export function aim(mode: Mode, cell: Cell, dir: Dir, salvoFirst: Cell | null = null, side: Edge = 'left', marks: Marks = {}): Aim {
   switch (mode) {
     case 'shot':
       return { cells: [cell], action: { type: 'shot', target: cell } };
@@ -38,7 +39,9 @@ export function aim(mode: Mode, cell: Cell, dir: Dir, salvoFirst: Cell | null = 
       const index = side === 'left' || side === 'right' ? cell.y : cell.x;
       return { cells: lane(index, side), action: { type: 'torpedo', lane: index, from: side } };
     }
-    case 'scout':
-      return { cells: [], action: { type: 'scout' } };
+    case 'ricochet': {
+      const landing = ricochetLanding(cell, side, { ...marks, [key(cell)]: 'miss' });
+      return { cells: landing ? [cell, landing] : [cell], action: { type: 'ricochet', target: cell, toward: side } };
+    }
   }
 }

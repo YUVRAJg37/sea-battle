@@ -1,7 +1,7 @@
 import './style.css';
 import {
   EDGES, canUseAbility, inBounds, randomFleet, sameCell, shipAt, shipCells, validateAction, validateFleet, SHIPS, SHIP_TYPES,
-  type Action, type Cell, type Dir, type Edge, type Fleet, type GameState, type PlayerId, type ShipType, type TurnRecord,
+  type Action, type Cell, type Dir, type Edge, type Fleet, type GameState, type PieceType, type PlayerId, type TurnRecord,
 } from './engine';
 import { Match, ME, THEM } from './game/match';
 import { aim, type Mode } from './game/targeting';
@@ -34,12 +34,12 @@ let screen: Screen = 'title';
 let howTo = false;
 // Placement
 let fleet: Fleet = randomFleet(Math.random);
-let held: { type: ShipType; dir: Dir } | null = null;
+let held: { type: PieceType; dir: Dir } | null = null;
 // Battle
 let match: Match | null = null;
 let mode: Mode = 'shot';
 let dir: Dir = 'h'; // airstrike orientation
-let torpedoSide: Edge = 'left'; // edge the torpedo launches from
+let side: Edge = 'left'; // edge the torpedo launches from, or the ricochet bounces toward
 let salvoFirst: Cell | null = null;
 let busy = false;
 let acting: PlayerId | null = null; // whose turn is animating; the state has already moved on
@@ -65,6 +65,7 @@ let notice: HudView['notice'] = null;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const sentence = (s: string) => s[0]!.toUpperCase() + s.slice(1) + (s.endsWith('.') ? '' : '.');
 const flip = (d: Dir): Dir => (d === 'h' ? 'v' : 'h');
+const OPPOSITE: Record<Edge, Edge> = { left: 'right', right: 'left', top: 'bottom', bottom: 'top' };
 const myTurn = () => screen === 'battle' && !busy && !reconnecting && match!.state.turn === ME;
 
 // --- Placement ---
@@ -100,10 +101,13 @@ function tapPlacing(cell: Cell) {
 // --- Battle ---
 
 function previewAim() {
-  const cells = !myTurn() ? [] : pointed ? aim(mode, pointed, dir, salvoFirst, torpedoSide).cells : salvoFirst ? [salvoFirst] : [];
+  const marks = match?.state.players[THEM].marks;
+  const cells = !myTurn() ? [] : pointed ? aim(mode, pointed, dir, salvoFirst, side, marks).cells : salvoFirst ? [salvoFirst] : [];
   scene.enemy.setPreview(cells);
-  // The torpedo's whole lane lights up, so an arrow on its first cell shows which way it runs.
-  scene.enemy.setArrow(mode === 'torpedo' && cells.length ? cells[0]! : null, torpedoSide);
+  // The torpedo's whole lane lights up, so an arrow on its first cell shows which way it runs;
+  // the ricochet's arrow sits where it would land, pointing the way it skips.
+  const arrow = !cells.length ? null : mode === 'torpedo' ? cells[0]! : mode === 'ricochet' ? cells.at(-1)! : null;
+  scene.enemy.setArrow(arrow, mode === 'ricochet' ? OPPOSITE[side] : side);
 }
 
 function tapBattle(cell: Cell, isMouse: boolean) {
@@ -117,7 +121,7 @@ function tapBattle(cell: Cell, isMouse: boolean) {
     return render();
   }
 
-  const { action } = aim(mode, cell, dir, salvoFirst, torpedoSide);
+  const { action } = aim(mode, cell, dir, salvoFirst, side, match!.state.players[THEM].marks);
   if (!action) {
     if (mode === 'salvo' && !salvoFirst) {
       salvoFirst = cell;
@@ -210,7 +214,6 @@ async function playRecord(record: TurnRecord) {
 function selectMode(next: Mode) {
   if (!myTurn()) return;
   if (next !== 'shot' && !canUseAbility(match!.state, ME, next)) return; // hotkeys can reach weapons that aren't ready
-  if (next === 'scout') return fire({ type: 'scout' });
   mode = next === mode ? 'shot' : next; // tapping the active ability turns it off
   sound.select();
   salvoFirst = null;
@@ -365,6 +368,8 @@ async function readyOnline() {
 /** Once someone wins: swap fleets, check every report they gave us, and show their whole fleet. */
 async function checkOpponent(m: Match) {
   const s = session;
+  const botFleet = m.opponent.revealFleet?.();
+  if (botFleet) scene.enemy.setShips(botFleet);
   if (!s || !round) return;
   fairPlay = { status: 'checking' };
   render();
@@ -439,7 +444,8 @@ function onButton(act: string) {
       break;
     case 'chat':
       chatOpen = !chatOpen;
-      if (chatOpen) requestAnimationFrame(() => document.getElementById('chat-input')?.focus({ preventScroll: true }));
+      // Focusing on a touch screen pops the keyboard over the board; there the presets come first.
+      if (chatOpen && matchMedia('(hover: hover)').matches) requestAnimationFrame(() => document.getElementById('chat-input')?.focus({ preventScroll: true }));
       break;
     case 'create-room':
       void enterRoom(newRoomCode());
@@ -463,7 +469,7 @@ function onButton(act: string) {
         held = { ...held, dir: flip(held.dir) };
         previewPlacement();
       } else if (screen === 'battle') {
-        if (mode === 'torpedo') torpedoSide = EDGES[(EDGES.indexOf(torpedoSide) + 1) % EDGES.length]!; // left → top → right → bottom
+        if (mode === 'torpedo' || mode === 'ricochet') side = EDGES[(EDGES.indexOf(side) + 1) % EDGES.length]!; // left → top → right → bottom
         else dir = flip(dir);
         previewAim();
       }
@@ -532,7 +538,7 @@ function render() {
     log,
     mode,
     canStart: !held && !waitingForPeer && validateFleet(fleet) === null,
-    showRotate: mode === 'airstrike' || mode === 'torpedo',
+    showRotate: mode === 'airstrike' || mode === 'torpedo' || mode === 'ricochet',
     viewLabel: view === 'mine' ? 'Enemy grid' : 'My fleet',
     fleets: state && shown ? { mine: fleetStatus(ME), enemy: fleetStatus(THEM) } : null,
     result: state && state.winner !== null ? { won: state.winner === ME, mine: statsFor(state, ME), enemy: statsFor(state, THEM) } : null,

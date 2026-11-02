@@ -1,8 +1,8 @@
 // Fair play over P2P: each player publishes a hash of their fleet before the first shot,
 // then reveals fleet + salt at the end so the opponent can replay and check every report.
-import { SHIP_TYPES } from './config';
+import { PIECE_TYPES } from './config';
 import { key, type Marks } from './grid';
-import { shipAt, validateFleet, type Fleet, type Ship } from './fleet';
+import { validateFleet, type Fleet, type Ship } from './fleet';
 import type { Outcome } from './actions';
 import { applyOutcome, resolveAction } from './resolve';
 import type { PlayerId, TurnRecord } from './game';
@@ -39,13 +39,7 @@ export async function verifyDefender(
   let marks: Marks = {};
   for (const [i, { attacker, action, outcome }] of log.entries()) {
     if (attacker === defender) continue;
-    if (action.type === 'scout') {
-      // Scout picks a random cell, so check it is a real unhit ship cell instead of replaying it.
-      const c = outcome.scouted;
-      if (!c || !shipAt(fleet, c) || key(c) in marks) return `false scout report on turn ${i + 1}`;
-    } else if (canonicalOutcome(resolveAction(fleet, marks, action)) !== canonicalOutcome(outcome)) {
-      return `false report on turn ${i + 1}`;
-    }
+    if (canonicalOutcome(resolveAction(fleet, marks, action)) !== canonicalOutcome(outcome)) return `false report on turn ${i + 1}`;
     marks = applyOutcome(marks, outcome);
   }
   return null;
@@ -55,7 +49,7 @@ export async function verifyDefender(
 const canonicalShip = (s: Ship) => ({ type: s.type, x: s.origin.x, y: s.origin.y, dir: s.dir });
 
 const canonicalFleet = (fleet: Fleet) =>
-  [...fleet].sort((a, b) => SHIP_TYPES.indexOf(a.type) - SHIP_TYPES.indexOf(b.type)).map(canonicalShip);
+  [...fleet].sort((a, b) => PIECE_TYPES.indexOf(a.type) - PIECE_TYPES.indexOf(b.type)).map(canonicalShip);
 
 const canonicalOutcome = (o: Outcome): string =>
   JSON.stringify([o.hits.map(key), o.misses.map(key), canonicalFleet(o.sunk), o.radarCount ?? null]);

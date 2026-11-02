@@ -1,7 +1,7 @@
-import { EDGES, SHIP_TYPES, inBounds, shipCells, type Action, type Cell, type Edge, type Fleet, type Outcome, type Ship } from '../engine';
+import { EDGES, PIECE_TYPES, SHIP_TYPES, inBounds, shipCells, type Action, type Cell, type Edge, type Fleet, type Outcome, type Ship } from '../engine';
 
 /** Bumped whenever messages change shape, so mismatched clients refuse each other cleanly. */
-export const PROTOCOL_VERSION = 3;
+export const PROTOCOL_VERSION = 4;
 const MAX_MESSAGE_BYTES = 8 * 1024;
 export const MAX_CHAT_LENGTH = 140;
 
@@ -50,7 +50,7 @@ export function parseMessage(raw: unknown): Message | null {
     case 'outcome':
       return isOutcome(m.outcome) ? { type: 'outcome', outcome: m.outcome } : null;
     case 'reveal':
-      return Array.isArray(m.fleet) && m.fleet.length === SHIP_TYPES.length && m.fleet.every(isShip) && isSalt(m.salt)
+      return Array.isArray(m.fleet) && m.fleet.length === PIECE_TYPES.length && m.fleet.every(isShip) && isSalt(m.salt)
         ? { type: 'reveal', fleet: m.fleet, salt: m.salt }
         : null;
     case 'chat': {
@@ -86,7 +86,7 @@ const isCells = (v: unknown): v is Cell[] => Array.isArray(v) && v.length <= 100
 const isDir = (v: unknown) => v === 'h' || v === 'v';
 
 function isShip(v: unknown): v is Ship {
-  if (!isObject(v) || !SHIP_TYPES.includes(v.type as Ship['type']) || !isDir(v.dir) || !isCell(v.origin)) return false;
+  if (!isObject(v) || !PIECE_TYPES.includes(v.type as Ship['type']) || !isDir(v.dir) || !isCell(v.origin)) return false;
   return shipCells(v as unknown as Ship).every(inBounds);
 }
 
@@ -103,8 +103,8 @@ function isAction(v: unknown): v is Action {
       return isCell(v.center);
     case 'torpedo':
       return isInt(v.lane) && v.lane >= 0 && v.lane < 10 && EDGES.includes(v.from as Edge);
-    case 'scout':
-      return true;
+    case 'ricochet':
+      return isCell(v.target) && EDGES.includes(v.toward as Edge);
     default:
       return false;
   }
@@ -115,8 +115,7 @@ function isOutcome(v: unknown): v is Outcome {
     isObject(v) &&
     isCells(v.hits) &&
     isCells(v.misses) &&
-    Array.isArray(v.sunk) && v.sunk.length <= SHIP_TYPES.length && v.sunk.every(isShip) &&
-    (v.radarCount === undefined || (isInt(v.radarCount) && v.radarCount >= 0 && v.radarCount <= 9)) &&
-    (v.scouted === undefined || isCell(v.scouted))
+    Array.isArray(v.sunk) && v.sunk.length <= SHIP_TYPES.length && v.sunk.every((s) => isShip(s) && s.type !== 'decoy') &&
+    (v.radarCount === undefined || (isInt(v.radarCount) && v.radarCount >= 0 && v.radarCount <= 9))
   );
 }

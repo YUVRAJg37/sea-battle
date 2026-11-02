@@ -1,5 +1,5 @@
 import {
-  AIRSTRIKE_LENGTH, BOARD_SIZE, RADAR_RADIUS, EDGES, allCells, area, canUseAbility, inBounds, lane, line, opponent, randomFleet, resolveAction,
+  AIRSTRIKE_LENGTH, BOARD_SIZE, RADAR_RADIUS, EDGES, allCells, area, canUseAbility, inBounds, key, lane, line, opponent, randomFleet, resolveAction, ricochetLanding,
   type Ability, type Action, type Cell, type Dir, type GameState, type PlayerId, type Rng,
 } from '../engine';
 import { THEM, type Opponent } from '../game/match';
@@ -9,14 +9,15 @@ import { cellIndex, heatMap, knowledgeOf, knownShipCells } from './heatmap';
 export function aiBot(rng: Rng = Math.random): Opponent {
   const fleet = randomFleet(rng);
   return {
-    resolve: async (state, action) => resolveAction(fleet, state.players[THEM].marks, action, rng),
+    resolve: async (state, action) => resolveAction(fleet, state.players[THEM].marks, action),
     chooseAction: async (state) => chooseAction(state, THEM, rng),
+    revealFleet: () => fleet,
   };
 }
 
 /**
  * Picks the action for player `me`. Damage abilities fire whenever ready; information abilities
- * (torpedo, scout, radar) only while hunting, since once a ship is found the heat map already
+ * (torpedo, radar) only while hunting, since once a ship is found the heat map already
  * points at it.
  */
 export function chooseAction(state: GameState, me: PlayerId, rng: Rng = Math.random): Action {
@@ -42,8 +43,17 @@ export function chooseAction(state: GameState, me: PlayerId, rng: Rng = Math.ran
     const best = maxBy(lanes, (l) => sum(l.cells) + 0.5 * sum(l.cells.slice(0, BOARD_SIZE / 2)));
     return { type: 'torpedo', lane: best.lane, from: best.from };
   }
-  if (hunting && ready('scout')) return { type: 'scout' };
   if (hunting && ready('radar')) return { type: 'radar', center: maxBy(allCells(), (c) => sum(area(c, RADAR_RADIUS))) };
+  if (ready('ricochet') && ranked.length) {
+    // A shot at a top cell, bouncing toward whichever landing cell is hottest.
+    const marks = state.players[opponent(me)].marks;
+    const options = ranked.slice(0, 5).flatMap((target) => EDGES.map((toward) => {
+      const landing = ricochetLanding(target, toward, { ...marks, [key(target)]: 'miss' });
+      return { target, toward, score: sum([target]) + (landing ? 0.5 * sum([landing]) : 0) };
+    }));
+    const best = maxBy(options, (o) => o.score);
+    return { type: 'ricochet', target: best.target, toward: best.toward };
+  }
   return { type: 'shot', target: ranked[0]! };
 }
 

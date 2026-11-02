@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { allCells, key, randomFleet, seededRng, type Fleet, type Rng } from '../engine';
 import { Match, ME, THEM } from '../game/match';
 import { aiBot, chooseAction } from './ai';
-import { cellIndex, heatMap, type Knowledge } from './heatmap';
+import { cellIndex, heatMap, knownShipCells, type Knowledge } from './heatmap';
 
-const blank = (): Knowledge => ({ marks: {}, sunk: [], radar: [], scouted: [] });
+const blank = (): Knowledge => ({ marks: {}, sunk: [], radar: [] });
 const hottest = (heat: number[]) => allCells().reduce((a, b) => (heat[cellIndex(b)]! > heat[cellIndex(a)]! ? b : a));
 
 describe('heat map', () => {
@@ -19,8 +19,10 @@ describe('heat map', () => {
     expect(Math.abs(c.x - 5) + Math.abs(c.y - 5)).toBe(1);
   });
 
-  it('points straight at a scouted cell', () => {
-    expect(hottest(heatMap({ ...blank(), scouted: [{ x: 2, y: 7 }] }))).toEqual({ x: 2, y: 7 });
+  it('writes off a lone hit boxed in by misses as the decoy', () => {
+    const marks = { '5,5': 'hit', '4,5': 'miss', '6,5': 'miss', '5,4': 'miss', '5,6': 'miss' } as const;
+    expect(knownShipCells({ ...blank(), marks }).size).toBe(0);
+    expect(knownShipCells({ ...blank(), marks: { '5,5': 'hit', '4,5': 'miss' } }).size).toBe(1);
   });
 });
 
@@ -47,7 +49,7 @@ describe('ai', () => {
       const match = await playOut(rng, randomFleet(rng), (m) => chooseAction(m.state, ME, rng));
       for (const r of match.state.log) used.add(r.action.type);
     }
-    expect([...used].sort()).toEqual(['airstrike', 'radar', 'salvo', 'scout', 'shot', 'torpedo']);
+    expect([...used].sort()).toEqual(['airstrike', 'radar', 'ricochet', 'salvo', 'shot', 'torpedo']);
   });
 
   it('beats a random shooter nearly every time', async () => {

@@ -48,6 +48,11 @@ export type Edge = 'left' | 'right' | 'top' | 'bottom';
 
 export const EDGES: Edge[] = ['left', 'top', 'right', 'bottom'];
 
+const STEP: Record<Edge, Cell> = { left: { x: -1, y: 0 }, right: { x: 1, y: 0 }, top: { x: 0, y: -1 }, bottom: { x: 0, y: 1 } };
+
+/** The cell `n` steps from `c` toward an edge. */
+export const toward = (c: Cell, edge: Edge, n = 1): Cell => ({ x: c.x + STEP[edge].x * n, y: c.y + STEP[edge].y * n });
+
 /**
  * A full row (from left or right, `index` is y) or column (from top or bottom, `index` is x),
  * ordered from the launch edge across the board.

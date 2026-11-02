@@ -686,7 +686,7 @@ button:focus-visible {
 .chat-panel {
   position: fixed;
   right: var(--gutter);
-  bottom: calc(max(12px, env(safe-area-inset-bottom)) + 120px);
+  bottom: calc(max(12px, env(safe-area-inset-bottom)) + var(--hud-bottom, 120px) + 8px);
   z-index: 6;
   width: min(340px, calc(100vw - 2 * var(--gutter)));
   padding: 12px;

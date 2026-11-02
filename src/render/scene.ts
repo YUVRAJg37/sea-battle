@@ -20,7 +20,7 @@ export interface SceneSounds {
   airstrike(): void;
   bomb(): void;
   radar(): void;
-  scout(): void;
+  ricochet(): void;
 }
 
 const BOARD_OFFSET = 7; // boards sit at x = ±7
@@ -120,10 +120,17 @@ export class SeaScene {
         void this.effects.ping(at(action.center, 0.08));
         this.sounds?.radar();
         break;
-      case 'scout':
-        if (outcome.scouted) await this.effects.shell(launch, at(outcome.scouted));
-        this.sounds?.scout();
+      case 'ricochet': {
+        // Misses splash and skip on; the landing cell is the second one in the outcome.
+        const [first, landing] = [...outcome.misses, ...outcome.hits];
+        await this.effects.shell(launch, at(first!));
+        if (landing) {
+          this.effects.splash(at(first!));
+          this.sounds?.ricochet();
+          await this.effects.shell(at(first!), at(landing), 0.7);
+        }
         break;
+      }
       default:
         await Promise.all(
           [...outcome.hits, ...outcome.misses].map((c, i) => sleep(i * 150 * PACE).then(() => this.effects.shell(launch, at(c)))),
@@ -139,7 +146,6 @@ export class SeaScene {
     if (outcome.hits.length) this.sounds?.explosion();
     else if (outcome.misses.length) this.sounds?.splash();
     if (action.type === 'radar') target.addRadar(action.center, outcome.radarCount ?? 0);
-    if (outcome.scouted) target.addScout(outcome.scouted);
     target.setLastShot([...outcome.hits, ...outcome.misses]);
   }
 

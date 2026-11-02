@@ -30,9 +30,9 @@ export const MODE_INFO: Record<Mode, { label: string; description: string; icon:
     description: 'Runs along a row or column and hits the first ship. Rotate to pick the direction.',
     icon: icon('<rect x="2" y="9" width="15" height="6" rx="3"/><path d="M17 12h3M20 9l2 3-2 3"/>'),
   },
-  scout: {
-    label: 'Scout',
-    description: 'Reveals one enemy ship cell.',
-    icon: icon('<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>'),
+  ricochet: {
+    label: 'Ricochet',
+    description: 'One shell. If it misses, it skips 2 cells on and fires again. Rotate to pick the bounce direction.',
+    icon: icon('<path d="M3 18h18"/><path d="M4 8c2 0 4 10 6 10s3-6 5-6 3 6 5 6"/><circle cx="4" cy="6" r="1.5"/>'),
   },
 };

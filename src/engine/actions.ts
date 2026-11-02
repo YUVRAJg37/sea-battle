@@ -8,7 +8,7 @@ export type Action =
   | { type: 'salvo'; targets: [Cell, Cell] }
   | { type: 'radar'; center: Cell }
   | { type: 'torpedo'; lane: number; from: Edge } // lane: row index from left/right, column index from top/bottom
-  | { type: 'scout' };
+  | { type: 'ricochet'; target: Cell; toward: Edge }; // on a miss, bounces RICOCHET_SKIP cells toward that edge
 
 /** What the defender reports back. Ships in `sunk` are revealed in full. */
 export interface Outcome {
@@ -16,5 +16,4 @@ export interface Outcome {
   misses: Cell[];
   sunk: Ship[];
   radarCount?: number;
-  scouted?: Cell;
 }

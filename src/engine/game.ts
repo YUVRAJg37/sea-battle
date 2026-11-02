@@ -70,8 +70,8 @@ export function validateAction(state: GameState, action: Action): string | null 
       return Number.isInteger(action.lane) && action.lane >= 0 && action.lane < BOARD_SIZE && EDGES.includes(action.from)
         ? null
         : 'invalid torpedo lane';
-    case 'scout':
-      return null;
+    case 'ricochet':
+      return unshot(action.target) && EDGES.includes(action.toward) ? null : 'ricochet target is off the board or already shot';
     default:
       return 'unknown action';
   }

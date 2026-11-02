@@ -1,23 +1,24 @@
 import { describe, expect, it } from 'vitest';
 import {
   applyTurn, canUseAbility, commitFleet, newGame, newSalt, randomFleet, resolveAction, seededRng,
-  validateAction, validateFleet, verifyDefender, SHIPS, SHIP_TYPES,
-  type Action, type Fleet, type GameState, type PlayerId,
+  pieceLength, validateAction, validateFleet, verifyDefender, SHIPS, SHIP_TYPES,
+  type Action, type Edge, type Fleet, type GameState, type PlayerId,
 } from './index';
 
-// Ships along the left of rows 0, 2, 4, a vertical sub at x=5, a vertical destroyer at x=9.
+// Ships along the left of rows 0, 2, 4, a vertical sub at x=5, a vertical destroyer at x=9, the decoy at (8, 7).
 const FLEET: Fleet = [
   { type: 'carrier', origin: { x: 0, y: 0 }, dir: 'h' },
   { type: 'battleship', origin: { x: 0, y: 2 }, dir: 'h' },
   { type: 'cruiser', origin: { x: 0, y: 4 }, dir: 'h' },
   { type: 'submarine', origin: { x: 5, y: 6 }, dir: 'v' },
   { type: 'destroyer', origin: { x: 9, y: 0 }, dir: 'v' },
+  { type: 'decoy', origin: { x: 8, y: 7 }, dir: 'h' },
 ];
 
 /** Plays an action against FLEET-vs-FLEET locally, as both peers would. */
 function play(state: GameState, action: Action, fleets: [Fleet, Fleet] = [FLEET, FLEET]): GameState {
   const defender = (1 - state.turn) as PlayerId;
-  const outcome = resolveAction(fleets[defender], state.players[defender].marks, action, seededRng(1));
+  const outcome = resolveAction(fleets[defender], state.players[defender].marks, action);
   return applyTurn(state, action, outcome);
 }
 
@@ -35,6 +36,7 @@ describe('fleet', () => {
     expect(validateFleet(offBoard)).toMatch(/off the board/);
     expect(validateFleet(FLEET.slice(1))).toMatch(/number/);
     expect(validateFleet([...FLEET.slice(1), FLEET[1]!])).toMatch(/exactly one carrier/);
+    expect(validateFleet(FLEET.filter((s) => s.type !== 'decoy'))).toMatch(/number/);
   });
 
   it('randomFleet is always valid', () => {
@@ -78,13 +80,24 @@ describe('actions', () => {
     expect(out).toEqual({ hits: [], misses: [], sunk: [], radarCount: 6 });
   });
 
-  it('scout reveals an unhit ship cell', () => {
-    const marks = { '9,0': 'hit' } as const;
-    for (let seed = 0; seed < 20; seed++) {
-      const { scouted } = resolveAction(FLEET, marks, { type: 'scout' }, seededRng(seed));
-      expect(scouted).toBeDefined();
-      expect(scouted).not.toEqual({ x: 9, y: 0 });
-    }
+  it('ricochet stops on a hit and bounces two cells on after a miss', () => {
+    const ricochet = (x: number, y: number, toward: Edge): Action =>
+      ({ type: 'ricochet', target: { x, y }, toward });
+    expect(resolveAction(FLEET, {}, ricochet(0, 0, 'right'))).toEqual({ hits: [{ x: 0, y: 0 }], misses: [], sunk: [] });
+    expect(resolveAction(FLEET, {}, ricochet(2, 1, 'top')).misses).toEqual([{ x: 2, y: 1 }]); // (2,-1) is off the board
+    const bounce = resolveAction(FLEET, {}, ricochet(3, 6, 'right')); // miss at D7, lands on F7 where the sub is
+    expect(bounce.misses).toEqual([{ x: 3, y: 6 }]);
+    expect(bounce.hits).toEqual([{ x: 5, y: 6 }]);
+    // Cells already shot are skipped over: (5,6) is taken, so it slides on to (6,6).
+    const slide = resolveAction(FLEET, { '5,6': 'hit' }, ricochet(3, 6, 'right'));
+    expect(slide.misses).toEqual([{ x: 3, y: 6 }, { x: 6, y: 6 }]);
+  });
+
+  it('the decoy reports a hit, never sinks, blocks torpedoes and hides from radar', () => {
+    const hit = resolveAction(FLEET, {}, shot(8, 7));
+    expect(hit).toEqual({ hits: [{ x: 8, y: 7 }], misses: [], sunk: [] });
+    expect(resolveAction(FLEET, {}, { type: 'torpedo', lane: 7, from: 'right' }).hits).toEqual([{ x: 8, y: 7 }]);
+    expect(resolveAction(FLEET, {}, { type: 'radar', center: { x: 8, y: 7 } }).radarCount).toBe(0);
   });
 });
 
@@ -115,13 +128,13 @@ describe('game', () => {
     s = play(s, shot(5, 5));
     s = play(s, shot(9, 1)); // sinks it
     expect(s.players[0].sunk.map((x) => x.type)).toEqual(['destroyer']);
-    expect(canUseAbility(s, 0, 'scout')).toBe(false);
-    expect(validateAction(s, { type: 'scout' })).toMatch(/not ready/);
+    expect(canUseAbility(s, 0, 'ricochet')).toBe(false);
+    expect(validateAction(s, { type: 'ricochet', target: { x: 5, y: 5 }, toward: 'left' })).toMatch(/not ready/);
   });
 
   it('declares a winner when the whole fleet is sunk, then stops', () => {
-    const cells = FLEET.flatMap((ship) =>
-      Array.from({ length: SHIPS[ship.type].length }, (_, i) =>
+    const cells = FLEET.filter((ship) => ship.type !== 'decoy').flatMap((ship) =>
+      Array.from({ length: pieceLength(ship.type) }, (_, i) =>
         ship.dir === 'h' ? shot(ship.origin.x + i, ship.origin.y) : shot(ship.origin.x, ship.origin.y + i),
       ),
     );
@@ -145,7 +158,9 @@ describe('commit and verify', () => {
     s = play(s, shot(1, 1));
     s = play(s, { type: 'radar', center: { x: 1, y: 1 } });
     s = play(s, shot(2, 2));
-    s = play(s, { type: 'scout' });
+    s = play(s, { type: 'ricochet', target: { x: 2, y: 6 }, toward: 'right' });
+    s = play(s, shot(3, 3));
+    s = play(s, shot(8, 7)); // the decoy
     return { salt, commitment, log: s.log };
   }
 
@@ -171,10 +186,16 @@ describe('commit and verify', () => {
     expect(await verifyDefender(log, 1, FLEET, salt, commitment)).toMatch(/turn 3/);
   });
 
-  it('catches a fake scout report', async () => {
+  it('catches a lie about a ricochet', async () => {
     const { salt, commitment, log } = await honestGame();
-    log[4] = { ...log[4]!, outcome: { hits: [], misses: [], sunk: [], scouted: { x: 8, y: 8 } } };
-    expect(await verifyDefender(log, 1, FLEET, salt, commitment)).toMatch(/scout/);
+    log[4] = { ...log[4]!, outcome: { hits: [], misses: [{ x: 2, y: 6 }], sunk: [] } };
+    expect(await verifyDefender(log, 1, FLEET, salt, commitment)).toMatch(/turn 5/);
+  });
+
+  it('catches a lie about the decoy', async () => {
+    const { salt, commitment, log } = await honestGame();
+    log[6] = { ...log[6]!, outcome: { hits: [], misses: [{ x: 8, y: 7 }], sunk: [] } };
+    expect(await verifyDefender(log, 1, FLEET, salt, commitment)).toMatch(/turn 7/);
   });
 
   it('catches a swapped fleet', async () => {

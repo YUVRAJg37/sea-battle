@@ -89,6 +89,9 @@ export function createHud({ onButton, onMode, onJoin, onChat }: HudHandlers): { 
     e.preventDefault();
     onJoin(($('join-code') as HTMLInputElement).value);
   });
+  // Keep the chat panel just above the bottom controls, however tall they wrap on a phone.
+  const bottom = document.querySelector<HTMLElement>('.hud-bottom')!;
+  new ResizeObserver(() => document.documentElement.style.setProperty('--hud-bottom', `${bottom.offsetHeight}px`)).observe(bottom);
   $('chat-chips').replaceChildren(
     ...CHAT_PRESETS.map((text) => {
       const chip = el('button', '', text);

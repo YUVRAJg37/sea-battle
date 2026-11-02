@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import {
-  BOARD_SIZE, RADAR_RADIUS, SHIPS, area, inBounds, key, shipCells, type Cell, type Edge, type Fleet, type Marks, type Ship, type ShipType,
+  BOARD_SIZE, RADAR_RADIUS, area, inBounds, key, pieceLength, shipCells, type Cell, type Edge, type Fleet, type Marks, type PieceType, type Ship,
 } from '../engine';
 import { ShipView } from './ships';
 import { THEME } from './theme';
@@ -16,8 +16,9 @@ const arrowMat = new THREE.MeshBasicMaterial({ color: THEME.amber });
 const missGeo = new THREE.TorusGeometry(0.15, 0.04, 6, 20).rotateX(Math.PI / 2);
 const missMat = new THREE.MeshStandardMaterial({ color: THEME.miss, roughness: 0.4 });
 let scorchMat: THREE.MeshBasicMaterial | null = null;
-const scoutGeo = new THREE.OctahedronGeometry(0.22);
-const scoutMat = new THREE.MeshStandardMaterial({ color: THEME.amber, emissive: 0x664400, flatShading: true });
+// Exposed decoy: an amber diamond replaces the hit ember once we know the hit was fake.
+const decoyGeo = new THREE.OctahedronGeometry(0.2);
+const decoyMat = new THREE.MeshStandardMaterial({ color: THEME.amber, emissive: 0x664400, flatShading: true });
 const tileGeo = new THREE.PlaneGeometry(0.92, 0.92).rotateX(-Math.PI / 2);
 const bracketGeo = cornerBrackets();
 const ringGeo = new THREE.RingGeometry(0.42, 0.46, 4, 1, Math.PI / 4).rotateX(-Math.PI / 2); // thin square outline
@@ -103,7 +104,7 @@ class TilePool {
 export class Board3D {
   private readonly group = new THREE.Group();
   private readonly surface: THREE.Mesh;
-  private readonly ships = new Map<ShipType, ShipView>();
+  private readonly ships = new Map<PieceType, ShipView>();
   private readonly shipLayer = new THREE.Group();
   private readonly markers = new THREE.Group();
   private readonly marked = new Set<string>();
@@ -160,15 +161,27 @@ export class Board3D {
       this.ships.set(ship.type, view);
       this.shipLayer.add(view.group);
     }
+    this.exposeDecoy();
+  }
+
+  /** Once the decoy is on show and has been hit, swaps its ember for the decoy marker. */
+  private exposeDecoy(): void {
+    const decoy = this.ships.get('decoy');
+    if (!decoy) return;
+    const k = key(decoy.ship.origin);
+    const hitMarks = this.markers.children.filter((m) => m.userData.key === k && m.userData.kind !== 'decoy');
+    if (!hitMarks.some((m) => m.userData.kind === 'ember')) return;
+    this.markers.remove(...hitMarks);
+    this.add(Object.assign(new THREE.Mesh(decoyGeo, decoyMat), { userData: { kind: 'decoy', key: k, phase: 0 } }), decoy.ship.origin, 0.6);
   }
 
   /** World position of a ship's middle at deck height, if it's on this board. */
-  shipCenter(type: ShipType): THREE.Vector3 | undefined {
+  shipCenter(type: PieceType): THREE.Vector3 | undefined {
     return this.ships.get(type)?.center();
   }
 
   /** Starts the sinking animation for these ships unless already started. */
-  sink(types: ShipType[]): void {
+  sink(types: PieceType[]): void {
     for (const type of types) this.ships.get(type)?.sink();
   }
 
@@ -180,6 +193,7 @@ export class Board3D {
       const { kind, phase } = marker.userData;
       if (kind === 'miss') marker.position.y = 0.03 + Math.sin(time * 2 + phase) * 0.025;
       if (kind === 'ember') marker.scale.setScalar(1 + Math.sin(time * 4 + phase) * 0.08);
+      if (kind === 'decoy') marker.rotation.y = time * 1.5;
     }
   }
 
@@ -187,7 +201,7 @@ export class Board3D {
   setMarks(marks: Marks): void {
     for (const view of this.ships.values()) {
       const hits = shipCells(view.ship).filter((c) => marks[key(c)] === 'hit').length;
-      view.setDamage(hits / SHIPS[view.ship.type].length);
+      view.setDamage(hits / pieceLength(view.ship.type));
     }
     for (const [k, result] of Object.entries(marks)) {
       if (this.marked.has(k)) continue;
@@ -195,16 +209,13 @@ export class Board3D {
       const [x, y] = k.split(',').map(Number) as [number, number];
       const phase = Math.random() * Math.PI * 2;
       if (result === 'hit') {
-        this.add(new THREE.Mesh(scorchGeo, scorch()), { x, y }, 0.02);
-        this.add(Object.assign(new THREE.Mesh(emberGeo, emberMat), { userData: { kind: 'ember', phase } }), { x, y }, 0.45);
+        this.add(Object.assign(new THREE.Mesh(scorchGeo, scorch()), { userData: { kind: 'scorch', key: k } }), { x, y }, 0.02);
+        this.add(Object.assign(new THREE.Mesh(emberGeo, emberMat), { userData: { kind: 'ember', key: k, phase } }), { x, y }, 0.45);
       } else {
         this.add(Object.assign(new THREE.Mesh(missGeo, missMat), { userData: { kind: 'miss', phase } }), { x, y }, 0.03);
       }
     }
-  }
-
-  addScout(c: Cell): void {
-    this.add(new THREE.Mesh(scoutGeo, scoutMat), c, 0.6);
+    this.exposeDecoy();
   }
 
   /** Outlines the scanned area and floats the ship-cell count above its center. */
