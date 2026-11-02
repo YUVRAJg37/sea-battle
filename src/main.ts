@@ -8,9 +8,12 @@ import { aim, type Mode } from './game/targeting';
 import { describeTurn } from './game/describe';
 import { statsFor } from './game/stats';
 import { aiBot } from './bot/ai';
-import { agreeFirst, handshake, type Session } from './game/online';
+import { checkFairPlay, handshake, startRound, type FairPlay, type Round, type Session } from './game/online';
+import { Cancelled, ConnectionLost } from './net/channel';
+import { createChat, type Chat } from './ui/chat';
 import { connect, newRoomCode, normalizeRoomCode } from './net/connect';
 import { SeaScene, type View } from './render/scene';
+import { SETTING_LABEL, Sound } from './audio/sound';
 import { createHud, type HudView, type LobbyView, type LogLine, type Screen } from './ui/hud';
 import { MODE_INFO } from './ui/modes';
 
@@ -21,8 +24,11 @@ const hint = (text: string): LogLine[] => [{ text, kind: 'hint' }];
 await document.fonts.load('600 48px "Oxanium"').catch(() => undefined);
 
 const canvas = document.querySelector('canvas')!;
-const scene = new SeaScene(canvas);
-const hud = createHud({ onButton, onMode: selectMode, onJoin: joinRoom });
+const sound = new Sound();
+const scene = new SeaScene(canvas, sound);
+// Browsers only start audio after the player interacts.
+for (const type of ['pointerdown', 'keydown'] as const) addEventListener(type, () => sound.unlock());
+const hud = createHud({ onButton, onMode: selectMode, onJoin: joinRoom, onChat: (text) => chat?.send(text) && render() });
 
 let screen: Screen = 'title';
 let howTo = false;
@@ -46,12 +52,19 @@ let session: Session | null = null;
 let connecting: AbortController | null = null;
 let waitingForPeer = false; // our fleet is ready, theirs isn't yet
 let lobby: LobbyView = { stage: 'start', code: '', error: '', copied: false };
+let reconnecting = false; // the link dropped and is trying to come back
+let peerGone = false; // the opponent left the room (no rematch possible)
+let round: Round | null = null; // this round's commitments, checked at the end
+let fairPlay: FairPlay | { status: 'checking' } | null = null;
+let rematch = { mine: false, theirs: false };
+let chat: Chat | null = null;
+let chatOpen = false;
 let notice: HudView['notice'] = null;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const sentence = (s: string) => s[0]!.toUpperCase() + s.slice(1) + (s.endsWith('.') ? '' : '.');
 const flip = (d: Dir): Dir => (d === 'h' ? 'v' : 'h');
-const myTurn = () => screen === 'battle' && !busy && match!.state.turn === ME;
+const myTurn = () => screen === 'battle' && !busy && !reconnecting && match!.state.turn === ME;
 
 // --- Placement ---
 
@@ -77,6 +90,7 @@ function tapPlacing(cell: Cell) {
     held = { type: ship.type, dir: ship.dir };
   }
   scene.sync(null, fleet);
+  sound.place();
   previewPlacement();
   log = hint(held ? `Moving the ${held.type}. Tap the water to drop it, or rotate it.` : PLACING_HINT);
   render();
@@ -156,9 +170,12 @@ async function enemyTurn(m: Match) {
 async function endTurns(m: Match) {
   if (m !== match) return; // the player left to the menu mid-turn
   if (m.state.winner !== null) {
+    void checkOpponent(m);
     await sleep(1800); // let the last ship sink before the report
     if (m !== match) return;
     screen = 'over';
+    if (m.state.winner === ME) sound.victory();
+    else sound.defeat();
     focus('overview');
   }
   if (mode !== 'shot' && !canUseAbility(m.state, ME, mode)) mode = 'shot';
@@ -173,6 +190,7 @@ async function playRecord(record: TurnRecord) {
   await scene.playTurn(record, byMe);
   shown = match!.state;
   scene.sync(shown, match!.fleet);
+  if (record.outcome.sunk.length) sound.sink();
   // Keep our result on screen above the enemy's reply so it isn't missed.
   const line: LogLine = { text: describeTurn(record, byMe), kind: byMe ? 'mine' : 'enemy' };
   log = byMe ? [line] : [...log.filter((l) => l.kind === 'mine'), line];
@@ -184,6 +202,7 @@ function selectMode(next: Mode) {
   if (next !== 'shot' && !canUseAbility(match!.state, ME, next)) return; // hotkeys can reach weapons that aren't ready
   if (next === 'scout') return fire({ type: 'scout' });
   mode = next === mode ? 'shot' : next; // tapping the active ability turns it off
+  sound.select();
   salvoFirst = null;
   log = hint(MODE_INFO[mode].description);
   previewAim();
@@ -202,6 +221,8 @@ function newPlacement() {
   match = null;
   notice = null;
   waitingForPeer = false;
+  round = null;
+  fairPlay = null;
   fleet = randomFleet(Math.random);
   held = null;
   mode = 'shot';
@@ -249,7 +270,8 @@ function leaveSession() {
   const s = session;
   session = null;
   waitingForPeer = false;
-  s?.channel.close();
+  reconnecting = false;
+  s?.link.close(); // says goodbye, so they don't wait for us to come back
 }
 
 function openLobby(error = '') {
@@ -272,11 +294,18 @@ async function enterRoom(code: string) {
   focus('overview');
   try {
     const { channel, role } = await connect(code, (stage) => ((lobby.stage = stage), render()), attempt.signal);
-    const s = await handshake(channel, role);
-    if (attempt.signal.aborted) return s.channel.close();
+    const s = await handshake(channel, role, {
+      // After a drop, both browsers rejoin the same room and the link picks up where it left off.
+      reconnect: (abort) => connect(code, () => {}, abort).then((c) => c.channel),
+      onStatus: (status) => session === s && ((reconnecting = status === 'reconnecting'), render()),
+    });
+    if (attempt.signal.aborted) return s.link.close();
     connecting = null;
     session = s;
-    s.channel.onClose(() => session === s && opponentLeft());
+    peerGone = false;
+    chat = createChat(s.link, () => sound.chat());
+    s.link.onClose((reason) => session === s && linkClosed(reason));
+    s.link.on('rematch', () => ((rematch.theirs = true), maybeRematch()));
     newPlacement();
   } catch (e) {
     if (!attempt.signal.aborted) openLobby(sentence(e instanceof Error ? e.message : String(e)));
@@ -313,56 +342,94 @@ async function readyOnline() {
   scene.mine.setPreview([]);
   log = hint('Fleet locked in. Waiting for your opponent to finish deploying…');
   render();
-  let first: PlayerId;
   try {
-    first = await agreeFirst(s);
+    round = await startRound(s, fleet);
   } catch (e) {
     return connectionLost(e);
   }
   if (s !== session) return;
   waitingForPeer = false;
-  startBattle(new Match(fleet, s.opponent, first));
+  startBattle(new Match(fleet, s.opponent, round.first));
 }
 
-function opponentLeft() {
-  session = null;
-  if (screen === 'placing' || (screen === 'battle' && match?.state.winner === null)) {
-    notice = { title: 'Opponent left', body: 'Your opponent disconnected, so the match is over.' };
-    busy = false;
-    render();
+/** Once someone wins: swap fleets, check every report they gave us, and show their whole fleet. */
+async function checkOpponent(m: Match) {
+  const s = session;
+  if (!s || !round) return;
+  fairPlay = { status: 'checking' };
+  render();
+  const result = await checkFairPlay(s, round, m.state.log, m.fleet);
+  if (m !== match) return;
+  fairPlay = result;
+  if (result.status !== 'unverified') scene.enemy.setShips(result.fleet);
+  render();
+}
+
+function maybeRematch() {
+  if (rematch.mine && rematch.theirs && session) {
+    rematch = { mine: false, theirs: false };
+    newPlacement();
+    log = hint('Rematch! ' + PLACING_HINT);
   }
+  render();
+}
+
+function linkClosed(reason: Error) {
+  session = null;
+  reconnecting = false;
+  waitingForPeer = false;
+  peerGone = true;
+  chat = null;
+  const left = /left/.test(reason.message);
+  if (screen === 'placing' || (screen === 'battle' && match?.state.winner === null)) {
+    notice = { title: left ? 'Opponent left' : 'Connection lost', body: sentence(reason.message) };
+    busy = false;
+  }
+  render();
 }
 
 /** A network failure mid-game ends the match with a notice. Anything else is a bug: let it surface. */
 function connectionLost(e: unknown) {
-  if (!session && !notice) throw e;
-  leaveSession();
-  notice ??= { title: 'Connection lost', body: sentence(e instanceof Error ? e.message : 'the connection to your opponent dropped') };
-  busy = false;
-  render();
+  if (e instanceof Cancelled) return;
+  if (!(e instanceof ConnectionLost)) throw e;
+  if (!notice) linkClosed(e);
 }
 
 function onButton(act: string) {
+  sound.click();
   switch (act) {
+    case 'sound':
+      sound.cycleSetting();
+      break;
     case 'play':
       newPlacement();
       break;
     case 'again':
-      // shortcut: online "play again" goes back to the lobby; an in-room rematch comes with M5.
-      if (session) openLobby();
-      else newPlacement();
+      if (session) {
+        rematch.mine = true;
+        session.link.send({ type: 'rematch' });
+        maybeRematch();
+      } else if (!peerGone) newPlacement();
       break;
     case 'menu':
       leaveSession();
       setRoomInUrl(null);
       match = null;
       notice = null;
+      peerGone = false;
+      chat = null;
+      chatOpen = false;
+      rematch = { mine: false, theirs: false };
       scene.reset();
       screen = 'title';
       focus('overview');
       break;
     case 'online':
       openLobby();
+      break;
+    case 'chat':
+      chatOpen = !chatOpen;
+      if (chatOpen) requestAnimationFrame(() => document.getElementById('chat-input')?.focus({ preventScroll: true }));
       break;
     case 'create-room':
       void enterRoom(newRoomCode());
@@ -375,6 +442,7 @@ function onButton(act: string) {
       break;
     case 'howto':
       howTo = true;
+      chatOpen = false;
       break;
     case 'close-howto':
       howTo = false;
@@ -410,6 +478,7 @@ function onButton(act: string) {
 }
 
 function turnCard(): Pick<HudView, 'turnLabel' | 'banner' | 'tone'> {
+  if (reconnecting) return { turnLabel: 'Connection lost', banner: 'Reconnecting…', tone: 'red' };
   if (screen === 'placing') {
     return { turnLabel: session ? 'Deployment · online' : 'Deployment', banner: waitingForPeer ? 'Waiting for opponent' : 'Position your fleet', tone: 'green' };
   }
@@ -424,7 +493,16 @@ function turnCard(): Pick<HudView, 'turnLabel' | 'banner' | 'tone'> {
   return { turnLabel, banner: busy ? 'Firing' : 'Your move', tone: 'amber' };
 }
 
+function overActions(): Pick<HudView, 'againLabel' | 'againDisabled' | 'leaveLabel' | 'overNote'> {
+  if (!session && !peerGone) return { againLabel: 'Play again', againDisabled: false, leaveLabel: 'Main menu', overNote: '' };
+  if (peerGone) return { againLabel: 'Rematch', againDisabled: true, leaveLabel: 'Main menu', overNote: 'Your opponent left the room.' };
+  if (rematch.mine) return { againLabel: 'Waiting for opponent…', againDisabled: true, leaveLabel: 'Leave room', overNote: '' };
+  if (rematch.theirs) return { againLabel: 'Accept rematch', againDisabled: false, leaveLabel: 'Leave room', overNote: 'Your opponent wants a rematch.' };
+  return { againLabel: 'Rematch', againDisabled: false, leaveLabel: 'Leave room', overNote: '' };
+}
+
 function render() {
+  sound.setMood(screen === 'battle' ? 'battle' : 'calm');
   const state = match?.state;
   const fleetStatus = (player: PlayerId) =>
     SHIP_TYPES.map((type) => ({ type, sunk: shown!.players[player].sunk.some((s) => s.type === type) }));
@@ -433,6 +511,11 @@ function render() {
     howTo,
     lobby,
     notice,
+    online: session !== null,
+    chatOpen,
+    soundLabel: SETTING_LABEL[sound.setting],
+    fairPlay: fairPlay && (fairPlay.status === 'cheated' ? { status: 'cheated', detail: fairPlay.detail } : { status: fairPlay.status }),
+    ...overActions(),
     readyLabel: waitingForPeer ? 'Waiting…' : 'Ready',
     ...turnCard(),
     log,
@@ -477,12 +560,14 @@ canvas.addEventListener('pointerup', (e) => {
 });
 
 addEventListener('keydown', (e) => {
-  if (e.repeat || e.metaKey || e.ctrlKey || e.altKey || e.target instanceof HTMLInputElement) return;
+  // Typing in a text box shouldn't fire hotkeys, except Escape to close the chat.
+  if (e.repeat || e.metaKey || e.ctrlKey || e.altKey || (e.target instanceof HTMLInputElement && e.key !== 'Escape')) return;
   const key = e.key.toLowerCase();
   if (howTo) {
     if (key === 'escape') onButton('close-howto');
     return;
   }
+  if (key === 'escape' && chatOpen) return onButton('chat');
   if (key === 'r') onButton('rotate');
   if (key === 'v' && screen === 'battle') onButton('view');
   // A focused button already handles Enter itself.

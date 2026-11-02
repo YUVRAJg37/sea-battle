@@ -11,6 +11,16 @@ import { createWater } from './water';
 
 export type View = 'mine' | 'enemy' | 'overview';
 
+/** The sounds the scene triggers as shots fly and land. */
+export interface SceneSounds {
+  cannon(): void;
+  explosion(): void;
+  splash(): void;
+  torpedo(): void;
+  radar(): void;
+  scout(): void;
+}
+
 const BOARD_OFFSET = 7; // boards sit at x = ±7
 const OVERVIEW_ZOOM = 1.5;
 const OVERVIEW_PITCH = THREE.MathUtils.degToRad(24);
@@ -24,7 +34,7 @@ export class SeaScene {
   private readonly effects: Effects;
   private afloat: ShipType[] = []; // our ships still in the fight, for picking which one fires
 
-  constructor(canvas: HTMLCanvasElement) {
+  constructor(canvas: HTMLCanvasElement, private readonly sounds?: SceneSounds) {
     this.stage = createStage(canvas);
     const sun = new THREE.Vector3(SUN_DIRECTION.x, SUN_DIRECTION.y, SUN_DIRECTION.z);
     const animateWater = createWater(this.stage.scene, sun);
@@ -71,7 +81,12 @@ export class SeaScene {
     const launch = this.launchPoint(byMe);
     const at = (c: Cell, y = 0) => target.cellPosition(c, y);
     target.setLastShot([]);
-    if (action.type !== 'torpedo') this.effects.muzzle(launch);
+    if (action.type !== 'torpedo') {
+      this.effects.muzzle(launch);
+      this.sounds?.cannon();
+    } else {
+      this.sounds?.torpedo();
+    }
 
     switch (action.type) {
       case 'torpedo': {
@@ -83,9 +98,11 @@ export class SeaScene {
       case 'radar':
         await this.effects.shell(launch, at(action.center));
         void this.effects.ping(at(action.center, 0.08));
+        this.sounds?.radar();
         break;
       case 'scout':
         if (outcome.scouted) await this.effects.shell(launch, at(outcome.scouted));
+        this.sounds?.scout();
         break;
       default:
         await Promise.all(
@@ -99,6 +116,8 @@ export class SeaScene {
     }
     if (action.type !== 'torpedo') for (const c of outcome.misses) this.effects.splash(at(c));
     if (outcome.hits.length) this.stage.shake(0.2 + 0.1 * outcome.hits.length);
+    if (outcome.hits.length) this.sounds?.explosion();
+    else if (outcome.misses.length) this.sounds?.splash();
     if (action.type === 'radar') target.addRadar(action.center, outcome.radarCount ?? 0);
     if (outcome.scouted) target.addScout(outcome.scouted);
     target.setLastShot([...outcome.hits, ...outcome.misses]);

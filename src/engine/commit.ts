@@ -11,9 +11,17 @@ export function newSalt(): string {
   return toHex(crypto.getRandomValues(new Uint8Array(16)));
 }
 
-export async function commitFleet(fleet: Fleet, salt: string): Promise<string> {
-  const data = new TextEncoder().encode(JSON.stringify({ fleet: canonicalFleet(fleet), salt }));
-  return toHex(new Uint8Array(await crypto.subtle.digest('SHA-256', data)));
+export function commitFleet(fleet: Fleet, salt: string): Promise<string> {
+  return sha256(JSON.stringify({ fleet: canonicalFleet(fleet), salt }));
+}
+
+/** Commitment to a random number, so neither player can pick theirs after seeing the other's. */
+export function commitSeed(seed: number, salt: string): Promise<string> {
+  return sha256(`${seed}:${salt}`);
+}
+
+async function sha256(text: string): Promise<string> {
+  return toHex(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))));
 }
 
 /** Checks that `defender` reported every turn honestly. Returns the problem, or null if clean. */

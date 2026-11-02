@@ -2,6 +2,7 @@ import { SHIPS, SHIP_TYPES, shipForAbility, type ShipType } from '../engine';
 import type { Mode } from '../game/targeting';
 import type { PlayerStats } from '../game/stats';
 import { MODE_INFO } from './modes';
+import { CHAT_PRESETS } from './chat';
 
 export type Screen = 'title' | 'lobby' | 'placing' | 'battle' | 'over';
 
@@ -29,8 +30,18 @@ export interface LobbyView {
   copied: boolean;
 }
 
+export type FairPlayView = { status: 'checking' | 'verified' | 'unverified' } | { status: 'cheated'; detail: string };
+
 export interface HudView {
   screen: Screen;
+  online: boolean;
+  chatOpen: boolean;
+  soundLabel: string;
+  fairPlay: FairPlayView | null;
+  againLabel: string;
+  againDisabled: boolean;
+  leaveLabel: string;
+  overNote: string;
   lobby: LobbyView;
   notice: { title: string; body: string } | null;
   readyLabel: string;
@@ -52,6 +63,7 @@ export interface HudHandlers {
   onButton(act: string): void;
   onMode(mode: Mode): void;
   onJoin(code: string): void;
+  onChat(text: string): void;
 }
 
 const STAT_ROWS: [string, (s: PlayerStats) => string][] = [
@@ -68,7 +80,7 @@ const el = <K extends keyof HTMLElementTagNameMap>(tag: K, className = '', text 
 const capitalize = (s: string) => s[0]!.toUpperCase() + s.slice(1);
 
 /** DOM overlay. Stateless: call `render` with the full view each time something changes. */
-export function createHud({ onButton, onMode, onJoin }: HudHandlers): { render(view: HudView): void } {
+export function createHud({ onButton, onMode, onJoin, onChat }: HudHandlers): { render(view: HudView): void } {
   const $ = (id: string) => document.getElementById(id)!;
   for (const button of document.querySelectorAll<HTMLButtonElement>('[data-act]')) {
     button.addEventListener('click', () => onButton(button.dataset.act!));
@@ -76,6 +88,20 @@ export function createHud({ onButton, onMode, onJoin }: HudHandlers): { render(v
   $('join-form').addEventListener('submit', (e) => {
     e.preventDefault();
     onJoin(($('join-code') as HTMLInputElement).value);
+  });
+  $('chat-chips').replaceChildren(
+    ...CHAT_PRESETS.map((text) => {
+      const chip = el('button', '', text);
+      chip.type = 'button';
+      chip.addEventListener('click', () => onChat(text));
+      return chip;
+    }),
+  );
+  $('chat-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const input = $('chat-input') as HTMLInputElement;
+    onChat(input.value);
+    input.value = '';
   });
 
   $('howto-abilities').replaceChildren(
@@ -160,6 +186,22 @@ export function createHud({ onButton, onMode, onJoin }: HudHandlers): { render(v
       $('battle').hidden = v.screen !== 'battle';
 
       $('turn-label').textContent = v.turnLabel;
+      for (const button of document.querySelectorAll<HTMLElement>('.chat-toggle')) button.hidden = !v.online;
+      for (const button of document.querySelectorAll<HTMLElement>('.sound-toggle')) button.textContent = v.soundLabel;
+      $('chat-panel').hidden = !(v.online && v.chatOpen);
+      $('chat-bubbles').hidden = !v.online;
+      ($('again') as HTMLButtonElement).disabled = v.againDisabled;
+      $('again').textContent = v.againLabel;
+      $('leave').textContent = v.leaveLabel;
+      $('over-note').textContent = v.overNote;
+      const fair = $('fair-play');
+      fair.dataset.status = v.fairPlay?.status ?? '';
+      fair.textContent = !v.fairPlay ? ''
+        : v.fairPlay.status === 'checking' ? 'Checking fair play…'
+        : v.fairPlay.status === 'verified' ? 'Fair play verified: every hit and miss they reported matches the fleet they revealed.'
+        : v.fairPlay.status === 'cheated' ? `Cheating detected: ${v.fairPlay.detail}.`
+        : "Fair play couldn't be checked: your opponent left before revealing their fleet.";
+
       $('banner').textContent = v.banner;
       ($('banner').parentElement as HTMLElement).dataset.tone = v.tone;
       $('log').replaceChildren(...v.log.map((line) => el('p', line.kind, line.text)));

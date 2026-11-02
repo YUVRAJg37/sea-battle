@@ -1,15 +1,27 @@
-import { SHIP_TYPES, inBounds, shipCells, type Action, type Cell, type Outcome, type Ship } from '../engine';
+import { SHIP_TYPES, inBounds, shipCells, type Action, type Cell, type Fleet, type Outcome, type Ship } from '../engine';
 
 /** Bumped whenever messages change shape, so mismatched clients refuse each other cleanly. */
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 const MAX_MESSAGE_BYTES = 8 * 1024;
+export const MAX_CHAT_LENGTH = 140;
 
 /** Everything two peers say to each other over the data channel. */
 export type Message =
   | { type: 'hello'; version: number }
-  | { type: 'ready'; seed: number } // fleet placed; seeds pick who fires first
+  // Fleet placed. Commits to the fleet and to a random seed without revealing either.
+  | { type: 'ready'; commitment: string; seedCommitment: string }
+  // Sent once both are ready: the seeds together pick who fires first.
+  | { type: 'seed'; seed: number; salt: string }
   | { type: 'action'; action: Action }
-  | { type: 'outcome'; outcome: Outcome };
+  | { type: 'outcome'; outcome: Outcome }
+  // After the last shot: the fleet and salt behind the commitment, so the other side can check every report.
+  | { type: 'reveal'; fleet: Fleet; salt: string }
+  | { type: 'chat'; text: string }
+  | { type: 'rematch' }
+  // After a reconnect: how many of the peer's messages we received, so they resend the rest.
+  | { type: 'resume'; received: number }
+  // Leaving on purpose, so the other side doesn't wait for a reconnect.
+  | { type: 'bye' };
 
 export type MessageType = Message['type'];
 
@@ -30,18 +42,41 @@ export function parseMessage(raw: unknown): Message | null {
     case 'hello':
       return isInt(m.version) ? { type: 'hello', version: m.version } : null;
     case 'ready':
-      return isInt(m.seed) ? { type: 'ready', seed: m.seed } : null;
+      return isHash(m.commitment) && isHash(m.seedCommitment) ? { type: 'ready', commitment: m.commitment, seedCommitment: m.seedCommitment } : null;
+    case 'seed':
+      return isInt(m.seed) && isSalt(m.salt) ? { type: 'seed', seed: m.seed, salt: m.salt } : null;
     case 'action':
       return isAction(m.action) ? { type: 'action', action: m.action } : null;
     case 'outcome':
       return isOutcome(m.outcome) ? { type: 'outcome', outcome: m.outcome } : null;
+    case 'reveal':
+      return Array.isArray(m.fleet) && m.fleet.length === SHIP_TYPES.length && m.fleet.every(isShip) && isSalt(m.salt)
+        ? { type: 'reveal', fleet: m.fleet, salt: m.salt }
+        : null;
+    case 'chat': {
+      const text = typeof m.text === 'string' ? cleanChat(m.text) : '';
+      return text ? { type: 'chat', text } : null;
+    }
+    case 'rematch':
+      return { type: 'rematch' };
+    case 'resume':
+      return isInt(m.received) && m.received >= 0 ? { type: 'resume', received: m.received } : null;
+    case 'bye':
+      return { type: 'bye' };
     default:
       return null;
   }
 }
 
+/** Trims, strips control characters and caps length. Rendered with textContent, never as HTML. */
+export function cleanChat(text: string): string {
+  return text.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, MAX_CHAT_LENGTH);
+}
+
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const isInt = (v: unknown): v is number => Number.isInteger(v);
+const isHash = (v: unknown): v is string => typeof v === 'string' && /^[0-9a-f]{64}$/.test(v);
+const isSalt = (v: unknown): v is string => typeof v === 'string' && /^[0-9a-f]{32}$/.test(v);
 
 function isCell(v: unknown): v is Cell {
   return isObject(v) && isInt(v.x) && isInt(v.y) && inBounds({ x: v.x, y: v.y }) && Object.keys(v).length === 2;

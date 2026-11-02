@@ -13,6 +13,7 @@
     <canvas id="view"></canvas>
 
     <section id="title" class="title-screen">
+      <button data-act="sound" class="btn small sound-toggle corner"></button>
       <div class="title-block">
         <p class="meta">Turn-based naval tactics</p>
         <h1 class="wordmark">Sea<br />Battle</h1>
@@ -23,7 +24,7 @@
           <button data-act="howto" class="menu-item"><span>How to play</span></button>
         </nav>
       </div>
-      <p class="build">v0.6</p>
+      <p class="build">v0.7</p>
     </section>
 
     <section id="lobby" class="title-screen" hidden>
@@ -70,12 +71,18 @@
 
       <div class="hud-bottom">
         <div id="placing" class="bar">
+          <button data-act="howto" class="btn icon" aria-label="How to play">?</button>
+          <button data-act="chat" class="btn chat-toggle">Chat</button>
+          <button data-act="sound" class="btn sound-toggle"></button>
           <button data-act="random" class="btn">Shuffle</button>
           <button data-act="rotate" class="btn">Rotate <kbd>R</kbd></button>
           <button data-act="start" id="start" class="btn primary">Ready</button>
         </div>
         <div id="battle">
           <div class="side-actions">
+            <button data-act="howto" class="btn small icon" aria-label="How to play">?</button>
+            <button data-act="chat" class="btn small chat-toggle">Chat</button>
+            <button data-act="sound" class="btn small sound-toggle"></button>
             <button data-act="rotate" id="rotate-battle" class="btn small">Rotate <kbd>R</kbd></button>
             <button data-act="view" id="view-toggle" class="btn small"></button>
           </div>
@@ -84,20 +91,45 @@
       </div>
     </div>
 
+    <div id="chat-bubbles" class="bubbles" aria-live="polite"></div>
+    <div id="chat-panel" class="chat-panel" hidden>
+      <div id="chat-chips" class="chips"></div>
+      <form id="chat-form" class="chat-form">
+        <input id="chat-input" maxlength="140" placeholder="Message" autocomplete="off" aria-label="Chat message" />
+        <button class="btn small" type="submit">Send</button>
+      </form>
+    </div>
+
     <section id="howto" class="sheet-backdrop" hidden>
       <aside class="sheet" role="dialog" aria-modal="true" aria-labelledby="howto-title">
         <header class="sheet-head">
           <h2 id="howto-title">How to play</h2>
           <button data-act="close-howto" class="btn small" aria-label="Close">Close <kbd>Esc</kbd></button>
         </header>
+        <h3 class="meta">The basics</h3>
         <ol class="rules">
-          <li>Position your five ships. Tap a ship to pick it up, tap the water to drop it.</li>
-          <li>Take turns firing at the enemy grid. Sink every enemy ship to win.</li>
-          <li>Instead of firing, use one ship's weapon. It then needs a few turns to reload.</li>
-          <li>Lose a ship and you lose its weapon.</li>
+          <li>Position your five ships. Tap a ship to pick it up, tap the water to drop it, and rotate it if you like. Shuffle places them all at random.</li>
+          <li>Take turns firing at the enemy grid. A red ember marks a hit, a white ring a miss. Sink every enemy ship to win.</li>
+          <li>Instead of firing, use one of your ships' weapons. It then needs a few turns to reload.</li>
+          <li>Lose a ship and you lose its weapon, so protect the ones you rely on.</li>
         </ol>
         <h3 class="meta">Weapons</h3>
         <ul id="howto-abilities" class="weapon-list"></ul>
+        <h3 class="meta">Controls</h3>
+        <dl class="controls">
+          <dt>Aim and fire</dt><dd>Mouse: hover to aim, click to fire. Touch: tap to aim, tap the same cell again to fire.</dd>
+          <dt><kbd>1</kbd>–<kbd>6</kbd></dt><dd>Pick Fire or a weapon</dd>
+          <dt><kbd>R</kbd></dt><dd>Rotate a ship while placing, or the airstrike</dd>
+          <dt><kbd>V</kbd></dt><dd>Switch between the enemy grid and your fleet</dd>
+          <dt><kbd>Enter</kbd></dt><dd>Start a game from the menu</dd>
+        </dl>
+        <h3 class="meta">Playing online</h3>
+        <ul class="rules">
+          <li>Create a room and send the link or the 6-character code to a friend. The game runs directly between your two browsers.</li>
+          <li>Your fleet never leaves your device. When the game ends, both fleets are revealed and every reported hit and miss is checked, so lying about hits gets caught.</li>
+          <li>If your connection drops, the game waits up to a minute for you to come back and carries on where it stopped.</li>
+          <li>Use Chat for quick reactions or a short message, and Rematch to play again in the same room.</li>
+        </ul>
       </aside>
     </section>
 
@@ -107,9 +139,12 @@
         <h1 id="result-title"></h1>
         <p id="result-sub" class="lede"></p>
         <div id="stats" class="stats"></div>
+        <p id="fair-play" class="fair-play"></p>
+        <p id="over-note" class="over-note"></p>
         <div class="actions">
-          <button data-act="again" class="btn primary">Play again <kbd>Enter</kbd></button>
-          <button data-act="menu" class="btn">Main menu</button>
+          <button data-act="again" id="again" class="btn primary"></button>
+          <button data-act="chat" class="btn chat-toggle">Chat</button>
+          <button data-act="menu" id="leave" class="btn">Main menu</button>
         </div>
       </div>
     </section>

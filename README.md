@@ -10,9 +10,11 @@ Turn-based 1v1 naval combat for web and mobile, with ship abilities and peer-to-
 - [x] Asset pass: five toon-shaded warships modelled in code (`src/render/models/`, outlined, naval palette in `palettes.ts`), ships bob/list/scorch with damage, GPU toon water, soft instanced particles (fire, smoke, spray), muzzle flashes, fireball + shockwave hits, water-column misses, dusk sky, sun glare, fog wisps, gulls; sea life (`oceanLife.ts`): channel buoys, drifting debris, leaping dolphins and fish, a distant whale, lighthouse and palm islands
 - [x] UI redesign, tactical console: Oxanium type, cut-corner plates, turn card and fleet status pinned to the top edges, turn log, weapon rack with 1–6 hotkeys, side-sheet how-to, after-action report
 - [x] M4: online play by room link. WebRTC data channel between the two browsers; a small Node signaling server (`server/`) only introduces them. Peer messages are validated (`src/net/protocol.ts`), both seeds pick who fires first, disconnects end the match with a notice
-- [ ] M5: fleet commitment check at game end, rematch in the same room, chat, reconnect
+- [x] M5: both players commit to their fleet and a coin-toss seed before play; at the end fleets are revealed and every report is replayed (cheating is flagged in the report). Rematch in the same room. Chat with quick reactions and short messages. The connection survives drops: both browsers rejoin the room for up to a minute and resend whatever was lost (`src/net/link.ts`)
+- [x] Sound, generated with the Web Audio API (`src/audio/sound.ts`): weapon and impact effects, ocean ambience with gulls, a music loop that picks up in battle; a toggle cycles sound on / music off / muted
+- [x] How to play: from the title or in game (?), with weapons, controls and online play
 - [ ] M6: random matchmaking
-- [ ] M7: sound and polish
+- [ ] M7: polish
 
 ## Ships and abilities
 Using an ability replaces your shot for that turn. Lose the ship, lose the ability. Balance lives in `src/engine/config.ts`.
@@ -33,7 +35,8 @@ Using an ability replaces your shot for that turn. Lose the ship, lose the abili
 - `server/`: signaling server (Node + ws, ~70 lines)
 - `deploy/`: systemd unit, Caddy site and install script for the VM
 - `src/render/`: Three.js scene. `SeaScene` is the one entry point: boards, water, ambient, effects, camera, turn animations. `models/` builds the warships from primitives
-- `src/ui/`: HTML overlay: screens, HUD, ability names/icons
+- `src/ui/`: HTML overlay: screens, HUD, chat, ability names/icons
+- `src/audio/`: synthesized sound effects, ambience and music
 - `src/main.ts`: screen flow, input, and wiring between match, scene and HUD
 
 ## Engine layout
