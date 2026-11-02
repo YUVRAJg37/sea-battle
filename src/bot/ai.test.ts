@@ -19,7 +19,7 @@ describe('heat map', () => {
     expect(Math.abs(c.x - 5) + Math.abs(c.y - 5)).toBe(1);
   });
 
-  it('writes off a lone hit boxed in by misses as the decoy', () => {
+  it('writes off a lone hit boxed in by misses as the mine', () => {
     const marks = { '5,5': 'hit', '4,5': 'miss', '6,5': 'miss', '5,4': 'miss', '5,6': 'miss' } as const;
     expect(knownShipCells({ ...blank(), marks }).size).toBe(0);
     expect(knownShipCells({ ...blank(), marks: { '5,5': 'hit', '4,5': 'miss' } }).size).toBe(1);

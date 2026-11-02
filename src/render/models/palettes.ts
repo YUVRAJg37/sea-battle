@@ -74,7 +74,7 @@ const VIVID_HULLS: Record<PieceType, number> = {
   cruiser: 0x2eb872,
   destroyer: 0xf2b632,
   submarine: 0x7b5cd6,
-  decoy: 0xff8a3d,
+  mine: 0xff8a3d,
 };
 
 export function palette(name: PaletteName, type: PieceType): Palette {

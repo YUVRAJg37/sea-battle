@@ -5,14 +5,14 @@ import {
   type Action, type Edge, type Fleet, type GameState, type PlayerId,
 } from './index';
 
-// Ships along the left of rows 0, 2, 4, a vertical sub at x=5, a vertical destroyer at x=9, the decoy at (8, 7).
+// Ships along the left of rows 0, 2, 4, a vertical sub at x=5, a vertical destroyer at x=9, the mine at (8, 7).
 const FLEET: Fleet = [
   { type: 'carrier', origin: { x: 0, y: 0 }, dir: 'h' },
   { type: 'battleship', origin: { x: 0, y: 2 }, dir: 'h' },
   { type: 'cruiser', origin: { x: 0, y: 4 }, dir: 'h' },
   { type: 'submarine', origin: { x: 5, y: 6 }, dir: 'v' },
   { type: 'destroyer', origin: { x: 9, y: 0 }, dir: 'v' },
-  { type: 'decoy', origin: { x: 8, y: 7 }, dir: 'h' },
+  { type: 'mine', origin: { x: 8, y: 7 }, dir: 'h' },
 ];
 
 /** Plays an action against FLEET-vs-FLEET locally, as both peers would. */
@@ -36,7 +36,7 @@ describe('fleet', () => {
     expect(validateFleet(offBoard)).toMatch(/off the board/);
     expect(validateFleet(FLEET.slice(1))).toMatch(/number/);
     expect(validateFleet([...FLEET.slice(1), FLEET[1]!])).toMatch(/exactly one carrier/);
-    expect(validateFleet(FLEET.filter((s) => s.type !== 'decoy'))).toMatch(/number/);
+    expect(validateFleet(FLEET.filter((s) => s.type !== 'mine'))).toMatch(/number/);
   });
 
   it('randomFleet is always valid', () => {
@@ -93,7 +93,7 @@ describe('actions', () => {
     expect(slide.misses).toEqual([{ x: 3, y: 6 }, { x: 6, y: 6 }]);
   });
 
-  it('the decoy reports a hit, never sinks, blocks torpedoes and hides from radar', () => {
+  it('the mine reports a hit, never sinks, blocks torpedoes and hides from radar', () => {
     const hit = resolveAction(FLEET, {}, shot(8, 7));
     expect(hit).toEqual({ hits: [{ x: 8, y: 7 }], misses: [], sunk: [] });
     expect(resolveAction(FLEET, {}, { type: 'torpedo', lane: 7, from: 'right' }).hits).toEqual([{ x: 8, y: 7 }]);
@@ -133,7 +133,7 @@ describe('game', () => {
   });
 
   it('declares a winner when the whole fleet is sunk, then stops', () => {
-    const cells = FLEET.filter((ship) => ship.type !== 'decoy').flatMap((ship) =>
+    const cells = FLEET.filter((ship) => ship.type !== 'mine').flatMap((ship) =>
       Array.from({ length: pieceLength(ship.type) }, (_, i) =>
         ship.dir === 'h' ? shot(ship.origin.x + i, ship.origin.y) : shot(ship.origin.x, ship.origin.y + i),
       ),
@@ -160,7 +160,7 @@ describe('commit and verify', () => {
     s = play(s, shot(2, 2));
     s = play(s, { type: 'ricochet', target: { x: 2, y: 6 }, toward: 'right' });
     s = play(s, shot(3, 3));
-    s = play(s, shot(8, 7)); // the decoy
+    s = play(s, shot(8, 7)); // the mine
     return { salt, commitment, log: s.log };
   }
 
@@ -192,7 +192,7 @@ describe('commit and verify', () => {
     expect(await verifyDefender(log, 1, FLEET, salt, commitment)).toMatch(/turn 5/);
   });
 
-  it('catches a lie about the decoy', async () => {
+  it('catches a lie about the mine', async () => {
     const { salt, commitment, log } = await honestGame();
     log[6] = { ...log[6]!, outcome: { hits: [], misses: [{ x: 8, y: 7 }], sunk: [] } };
     expect(await verifyDefender(log, 1, FLEET, salt, commitment)).toMatch(/turn 7/);

@@ -16,9 +16,9 @@ const arrowMat = new THREE.MeshBasicMaterial({ color: THEME.amber });
 const missGeo = new THREE.TorusGeometry(0.15, 0.04, 6, 20).rotateX(Math.PI / 2);
 const missMat = new THREE.MeshStandardMaterial({ color: THEME.miss, roughness: 0.4 });
 let scorchMat: THREE.MeshBasicMaterial | null = null;
-// Exposed decoy: an amber diamond replaces the hit ember once we know the hit was fake.
-const decoyGeo = new THREE.OctahedronGeometry(0.2);
-const decoyMat = new THREE.MeshStandardMaterial({ color: THEME.amber, emissive: 0x664400, flatShading: true });
+// Exposed mine: an amber diamond replaces the hit ember once the hit turns out to be the mine.
+const mineGeo = new THREE.OctahedronGeometry(0.2);
+const mineMat = new THREE.MeshStandardMaterial({ color: THEME.amber, emissive: 0x664400, flatShading: true });
 const tileGeo = new THREE.PlaneGeometry(0.92, 0.92).rotateX(-Math.PI / 2);
 const bracketGeo = cornerBrackets();
 const ringGeo = new THREE.RingGeometry(0.42, 0.46, 4, 1, Math.PI / 4).rotateX(-Math.PI / 2); // thin square outline
@@ -161,18 +161,18 @@ export class Board3D {
       this.ships.set(ship.type, view);
       this.shipLayer.add(view.group);
     }
-    this.exposeDecoy();
+    this.exposeMine();
   }
 
-  /** Once the decoy is on show and has been hit, swaps its ember for the decoy marker. */
-  private exposeDecoy(): void {
-    const decoy = this.ships.get('decoy');
-    if (!decoy) return;
-    const k = key(decoy.ship.origin);
-    const hitMarks = this.markers.children.filter((m) => m.userData.key === k && m.userData.kind !== 'decoy');
+  /** Once the mine is on show and has been hit, swaps its ember for the mine marker. */
+  private exposeMine(): void {
+    const mine = this.ships.get('mine');
+    if (!mine) return;
+    const k = key(mine.ship.origin);
+    const hitMarks = this.markers.children.filter((m) => m.userData.key === k && m.userData.kind !== 'mine');
     if (!hitMarks.some((m) => m.userData.kind === 'ember')) return;
     this.markers.remove(...hitMarks);
-    this.add(Object.assign(new THREE.Mesh(decoyGeo, decoyMat), { userData: { kind: 'decoy', key: k, phase: 0 } }), decoy.ship.origin, 0.6);
+    this.add(Object.assign(new THREE.Mesh(mineGeo, mineMat), { userData: { kind: 'mine', key: k, phase: 0 } }), mine.ship.origin, 0.6);
   }
 
   /** World position of a ship's middle at deck height, if it's on this board. */
@@ -193,7 +193,7 @@ export class Board3D {
       const { kind, phase } = marker.userData;
       if (kind === 'miss') marker.position.y = 0.03 + Math.sin(time * 2 + phase) * 0.025;
       if (kind === 'ember') marker.scale.setScalar(1 + Math.sin(time * 4 + phase) * 0.08);
-      if (kind === 'decoy') marker.rotation.y = time * 1.5;
+      if (kind === 'mine') marker.rotation.y = time * 1.5;
     }
   }
 
@@ -215,7 +215,7 @@ export class Board3D {
         this.add(Object.assign(new THREE.Mesh(missGeo, missMat), { userData: { kind: 'miss', phase } }), { x, y }, 0.03);
       }
     }
-    this.exposeDecoy();
+    this.exposeMine();
   }
 
   /** Outlines the scanned area and floats the ship-cell count above its center. */

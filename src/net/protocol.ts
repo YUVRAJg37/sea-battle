@@ -1,7 +1,7 @@
 import { EDGES, PIECE_TYPES, SHIP_TYPES, inBounds, shipCells, type Action, type Cell, type Edge, type Fleet, type Outcome, type Ship } from '../engine';
 
 /** Bumped whenever messages change shape, so mismatched clients refuse each other cleanly. */
-export const PROTOCOL_VERSION = 4;
+export const PROTOCOL_VERSION = 5;
 const MAX_MESSAGE_BYTES = 8 * 1024;
 export const MAX_CHAT_LENGTH = 140;
 
@@ -115,7 +115,7 @@ function isOutcome(v: unknown): v is Outcome {
     isObject(v) &&
     isCells(v.hits) &&
     isCells(v.misses) &&
-    Array.isArray(v.sunk) && v.sunk.length <= SHIP_TYPES.length && v.sunk.every((s) => isShip(s) && s.type !== 'decoy') &&
+    Array.isArray(v.sunk) && v.sunk.length <= SHIP_TYPES.length && v.sunk.every((s) => isShip(s) && s.type !== 'mine') &&
     (v.radarCount === undefined || (isInt(v.radarCount) && v.radarCount >= 0 && v.radarCount <= 9))
   );
 }

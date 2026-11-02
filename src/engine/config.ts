@@ -15,10 +15,10 @@ export type Ability = (typeof SHIPS)[ShipType]['ability'];
 
 export const SHIP_TYPES = Object.keys(SHIPS) as ShipType[];
 
-/** Everything placed on the board: the warships plus the decoy, a one-cell fake that reports hits but never sinks. */
-export type PieceType = ShipType | 'decoy';
-export const PIECE_TYPES: PieceType[] = [...SHIP_TYPES, 'decoy'];
-export const pieceLength = (type: PieceType): number => (type === 'decoy' ? 1 : SHIPS[type].length);
+/** Everything placed on the board: the warships plus the mine, one cell that reports hits but never sinks and isn't needed to win. */
+export type PieceType = ShipType | 'mine';
+export const PIECE_TYPES: PieceType[] = [...SHIP_TYPES, 'mine'];
+export const pieceLength = (type: PieceType): number => (type === 'mine' ? 1 : SHIPS[type].length);
 
 export const AIRSTRIKE_LENGTH = 3;
 export const RADAR_RADIUS = 1; // 3x3 area

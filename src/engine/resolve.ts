@@ -18,8 +18,8 @@ export function resolveAction(fleet: Fleet, marks: Marks, action: Action): Outco
     case 'torpedo':
       return fire(fleet, marks, torpedoPath(fleet, marks, lane(action.lane, action.from)));
     case 'radar':
-      // Radar sees through the decoy.
-      return { ...empty(), radarCount: area(action.center, RADAR_RADIUS).filter((c) => { const s = shipAt(fleet, c); return s && s.type !== 'decoy'; }).length };
+      // Radar sees through the mine.
+      return { ...empty(), radarCount: area(action.center, RADAR_RADIUS).filter((c) => { const s = shipAt(fleet, c); return s && s.type !== 'mine'; }).length };
     case 'ricochet': {
       const first = fire(fleet, marks, [action.target]);
       const landing = first.hits.length ? undefined : ricochetLanding(action.target, action.toward, applyOutcome(marks, first));

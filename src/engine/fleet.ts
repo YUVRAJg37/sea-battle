@@ -8,7 +8,7 @@ export interface Ship {
   dir: Dir;
 }
 
-export type Fleet = Ship[]; // the five warships and the decoy
+export type Fleet = Ship[]; // the five warships and the mine
 
 export const shipCells = (ship: Ship): Cell[] => line(ship.origin, ship.dir, pieceLength(ship.type));
 
@@ -17,9 +17,9 @@ export function shipAt(fleet: Fleet, cell: Cell): Ship | undefined {
   return fleet.find((s) => shipCells(s).some((c) => key(c) === k));
 }
 
-/** The decoy never sinks. */
+/** The mine never sinks. */
 export const isSunk = (ship: Ship, marks: Marks): boolean =>
-  ship.type !== 'decoy' && shipCells(ship).every((c) => marks[key(c)] === 'hit');
+  ship.type !== 'mine' && shipCells(ship).every((c) => marks[key(c)] === 'hit');
 
 /** Returns a reason the fleet is invalid, or null if it is valid. */
 export function validateFleet(fleet: Fleet): string | null {

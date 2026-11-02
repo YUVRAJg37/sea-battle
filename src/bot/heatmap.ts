@@ -43,7 +43,7 @@ function placements(k: Knowledge, blocked: Set<string>): Cell[][] {
 
 /**
  * Live hits: ship cells we know about whose ship isn't sunk yet. A hit no remaining ship could
- * cover must be the decoy, so it's dropped.
+ * cover must be the mine, so it's dropped.
  */
 export function knownShipCells(k: Knowledge, blocked = blockedCells(k)): Set<string> {
   const sunkCells = new Set(k.sunk.flatMap(shipCells).map(key));
