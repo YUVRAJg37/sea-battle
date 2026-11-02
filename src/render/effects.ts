@@ -5,6 +5,8 @@ import { outline, toonMaterial } from './shipMaterial';
 import { THEME } from './theme';
 
 const FIRE_INTERVAL = 0.06;
+/** Stretches every flight and impact animation; 1 is the original speed. */
+export const PACE = 1.4;
 const MAX_PARTICLES = 1500; // per system; tuned for mid-range phones
 const shellGeo = new THREE.SphereGeometry(0.1, 8, 6);
 const shellMat = new THREE.MeshBasicMaterial({ color: 0xffe0a0 });
@@ -41,9 +43,9 @@ export class Effects {
     scene.add(this.flash);
   }
 
-  /** Runs `step(t)` every frame with t going 0 → 1 over `duration` seconds. */
+  /** Runs `step(t)` every frame with t going 0 → 1 over `duration` seconds (times PACE). */
   animate(duration: number, step: (t: number) => void): Promise<void> {
-    return new Promise((done) => this.anims.push({ t: 0, duration, step, done }));
+    return new Promise((done) => this.anims.push({ t: 0, duration: duration * PACE, step, done }));
   }
 
   /** Fireball, sparks, smoke, a shockwave ring and a flash of light. */

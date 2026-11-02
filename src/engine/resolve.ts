@@ -1,5 +1,5 @@
 import { AIRSTRIKE_LENGTH, RADAR_RADIUS } from './config';
-import { area, key, line, row, type Cell, type Marks } from './grid';
+import { area, key, lane, line, type Cell, type Marks } from './grid';
 import { isSunk, shipAt, shipCells, type Fleet } from './fleet';
 import type { Action, Outcome } from './actions';
 import type { Rng } from './rng';
@@ -17,7 +17,7 @@ export function resolveAction(fleet: Fleet, marks: Marks, action: Action, rng: R
     case 'airstrike':
       return fire(fleet, marks, line(action.origin, action.dir, AIRSTRIKE_LENGTH));
     case 'torpedo':
-      return fire(fleet, marks, torpedoPath(fleet, marks, row(action.row, action.from)));
+      return fire(fleet, marks, torpedoPath(fleet, marks, lane(action.lane, action.from)));
     case 'radar':
       return { ...empty(), radarCount: area(action.center, RADAR_RADIUS).filter((c) => shipAt(fleet, c)).length };
     case 'scout': {

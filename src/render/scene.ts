@@ -1,8 +1,8 @@
 import * as THREE from 'three';
-import { AIRSTRIKE_LENGTH, BOARD_SIZE, SHIP_TYPES, line, shipCells, type Cell, type Fleet, type GameState, type Ship, type ShipType, type TurnRecord } from '../engine';
+import { AIRSTRIKE_LENGTH, BOARD_SIZE, SHIP_TYPES, lane, line, shipCells, type Cell, type Fleet, type GameState, type Ship, type ShipType, type TurnRecord } from '../engine';
 import { ME, THEM } from '../game/match';
 import { Board3D } from './board3d';
-import { Effects } from './effects';
+import { Effects, PACE } from './effects';
 import { createStage, type Stage } from './stage';
 import { createAmbient } from './ambient';
 import { createOceanLife } from './oceanLife';
@@ -98,9 +98,12 @@ export class SeaScene {
 
     switch (action.type) {
       case 'torpedo': {
-        const edge = action.from === 'left' ? -1 : BOARD_SIZE;
-        const end = outcome.hits[0] ?? { x: BOARD_SIZE - 1 - edge, y: action.row };
-        await this.effects.torpedo(at({ x: edge, y: action.row }, -0.05), at(end, -0.05));
+        // Launch from just off the board, one step back from the lane's first cell.
+        const path = lane(action.lane, action.from);
+        const [a, b] = [path[0]!, path[1]!];
+        const launchCell = { x: 2 * a.x - b.x, y: 2 * a.y - b.y };
+        const end = outcome.hits[0] ?? path.at(-1)!;
+        await this.effects.torpedo(at(launchCell, -0.05), at(end, -0.05));
         break;
       }
       case 'airstrike': {
@@ -123,7 +126,7 @@ export class SeaScene {
         break;
       default:
         await Promise.all(
-          [...outcome.hits, ...outcome.misses].map((c, i) => sleep(i * 150).then(() => this.effects.shell(launch, at(c)))),
+          [...outcome.hits, ...outcome.misses].map((c, i) => sleep(i * 150 * PACE).then(() => this.effects.shell(launch, at(c)))),
         );
     }
 

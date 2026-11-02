@@ -1,7 +1,7 @@
-import { SHIP_TYPES, inBounds, shipCells, type Action, type Cell, type Fleet, type Outcome, type Ship } from '../engine';
+import { EDGES, SHIP_TYPES, inBounds, shipCells, type Action, type Cell, type Edge, type Fleet, type Outcome, type Ship } from '../engine';
 
 /** Bumped whenever messages change shape, so mismatched clients refuse each other cleanly. */
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 3;
 const MAX_MESSAGE_BYTES = 8 * 1024;
 export const MAX_CHAT_LENGTH = 140;
 
@@ -102,7 +102,7 @@ function isAction(v: unknown): v is Action {
     case 'radar':
       return isCell(v.center);
     case 'torpedo':
-      return isInt(v.row) && v.row >= 0 && v.row < 10 && (v.from === 'left' || v.from === 'right');
+      return isInt(v.lane) && v.lane >= 0 && v.lane < 10 && EDGES.includes(v.from as Edge);
     case 'scout':
       return true;
     default:

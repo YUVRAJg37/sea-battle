@@ -109,9 +109,10 @@ export class Sound {
 
   /** A jet passing overhead: engine roar and air rush swelling in and out, with a Doppler drop. */
   airstrike(): void {
-    this.hiss('bandpass', 500, 2200, { duration: 0.8, gain: 0.55, attack: 0.6 });
-    this.hiss('bandpass', 2200, 400, { duration: 1.0, gain: 0.5, attack: 0.02, at: 0.75 });
-    this.tone('sawtooth', 210, 120, { duration: 1.7, gain: 0.08, attack: 0.7 });
+    // Timed to the jet's flight across the board (about 2.2 s).
+    this.hiss('bandpass', 500, 2200, { duration: 1.1, gain: 0.55, attack: 0.85 });
+    this.hiss('bandpass', 2200, 400, { duration: 1.4, gain: 0.5, attack: 0.02, at: 1.05 });
+    this.tone('sawtooth', 210, 120, { duration: 2.4, gain: 0.08, attack: 1.0 });
   }
 
   /** A bomb's falling whistle. */

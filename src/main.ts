@@ -1,10 +1,10 @@
 import './style.css';
 import {
-  canUseAbility, inBounds, randomFleet, sameCell, shipAt, shipCells, validateAction, validateFleet, SHIPS, SHIP_TYPES,
-  type Action, type Cell, type Dir, type Fleet, type GameState, type PlayerId, type ShipType, type TurnRecord,
+  EDGES, canUseAbility, inBounds, randomFleet, sameCell, shipAt, shipCells, validateAction, validateFleet, SHIPS, SHIP_TYPES,
+  type Action, type Cell, type Dir, type Edge, type Fleet, type GameState, type PlayerId, type ShipType, type TurnRecord,
 } from './engine';
 import { Match, ME, THEM } from './game/match';
-import { aim, type Mode, type Side } from './game/targeting';
+import { aim, type Mode } from './game/targeting';
 import { describeTurn } from './game/describe';
 import { statsFor } from './game/stats';
 import { aiBot } from './bot/ai';
@@ -39,7 +39,7 @@ let held: { type: ShipType; dir: Dir } | null = null;
 let match: Match | null = null;
 let mode: Mode = 'shot';
 let dir: Dir = 'h'; // airstrike orientation
-let torpedoSide: Side = 'left'; // edge the torpedo launches from
+let torpedoSide: Edge = 'left'; // edge the torpedo launches from
 let salvoFirst: Cell | null = null;
 let busy = false;
 let acting: PlayerId | null = null; // whose turn is animating; the state has already moved on
@@ -102,8 +102,8 @@ function tapPlacing(cell: Cell) {
 function previewAim() {
   const cells = !myTurn() ? [] : pointed ? aim(mode, pointed, dir, salvoFirst, torpedoSide).cells : salvoFirst ? [salvoFirst] : [];
   scene.enemy.setPreview(cells);
-  // The torpedo's row lights up either way, so an arrow on its first cell shows which way it runs.
-  scene.enemy.setArrow(mode === 'torpedo' && cells.length ? cells[0]! : null, torpedoSide === 'left' ? 'right' : 'left');
+  // The torpedo's whole lane lights up, so an arrow on its first cell shows which way it runs.
+  scene.enemy.setArrow(mode === 'torpedo' && cells.length ? cells[0]! : null, torpedoSide);
 }
 
 function tapBattle(cell: Cell, isMouse: boolean) {
@@ -463,7 +463,7 @@ function onButton(act: string) {
         held = { ...held, dir: flip(held.dir) };
         previewPlacement();
       } else if (screen === 'battle') {
-        if (mode === 'torpedo') torpedoSide = torpedoSide === 'left' ? 'right' : 'left';
+        if (mode === 'torpedo') torpedoSide = EDGES[(EDGES.indexOf(torpedoSide) + 1) % EDGES.length]!; // left → top → right → bottom
         else dir = flip(dir);
         previewAim();
       }

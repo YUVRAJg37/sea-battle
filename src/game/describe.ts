@@ -11,7 +11,10 @@ export function describeTurn({ action, outcome }: TurnRecord, byMe: boolean): st
     : action.type === 'airstrike' ? 'called an airstrike'
     : action.type === 'salvo' ? 'fired a salvo'
     : action.type === 'radar' ? `scanned ${cellName(action.center)}`
-    : action.type === 'torpedo' ? `launched a torpedo on row ${action.row + 1}`
+    : action.type === 'torpedo'
+      ? action.from === 'left' || action.from === 'right'
+        ? `launched a torpedo along row ${action.lane + 1}`
+        : `launched a torpedo ${action.from === 'top' ? 'down' : 'up'} column ${String.fromCharCode(65 + action.lane)}`
     : 'sent a scout';
   const hits = outcome.hits.length;
   const result =

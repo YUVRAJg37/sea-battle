@@ -1,5 +1,5 @@
 import { BOARD_SIZE, SHIPS, SHIP_TYPES, shipForAbility, AIRSTRIKE_LENGTH, type Ability, type ShipType } from './config';
-import { inBounds, key, line, sameCell, type Cell, type Marks } from './grid';
+import { EDGES, inBounds, key, line, sameCell, type Cell, type Marks } from './grid';
 import type { Ship } from './fleet';
 import type { Action, Outcome } from './actions';
 import { applyOutcome } from './resolve';
@@ -67,10 +67,9 @@ export function validateAction(state: GameState, action: Action): string | null 
     case 'radar':
       return inBounds(action.center) ? null : 'radar center is off the board';
     case 'torpedo':
-      return Number.isInteger(action.row) && action.row >= 0 && action.row < BOARD_SIZE &&
-        (action.from === 'left' || action.from === 'right')
+      return Number.isInteger(action.lane) && action.lane >= 0 && action.lane < BOARD_SIZE && EDGES.includes(action.from)
         ? null
-        : 'invalid torpedo row';
+        : 'invalid torpedo lane';
     case 'scout':
       return null;
     default:

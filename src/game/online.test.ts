@@ -167,6 +167,7 @@ describe('protocol parsing', () => {
     expect(ok({ type: 'action', action: { type: 'salvo', targets: [{ x: 1, y: 2 }, { x: 3, y: 4 }] } })).not.toBeNull();
     expect(ok({ type: 'outcome', outcome: { hits: [], misses: [{ x: 0, y: 0 }], sunk: [], radarCount: 2 } })).not.toBeNull();
     expect(ok({ type: 'chat', text: '  Nice shot!  ' })).toEqual({ type: 'chat', text: 'Nice shot!' });
+    expect(ok({ type: 'action', action: { type: 'torpedo', lane: 3, from: 'bottom' } })).not.toBeNull();
   });
 
   it('rejects junk', () => {
@@ -175,6 +176,8 @@ describe('protocol parsing', () => {
     expect(ok({ type: 'nope' })).toBeNull();
     expect(ok({ type: 'action', action: { type: 'shot', target: { x: 1.5, y: 0 } } })).toBeNull();
     expect(ok({ type: 'action', action: { type: 'salvo', targets: [{ x: 1, y: 2 }] } })).toBeNull();
+    expect(ok({ type: 'action', action: { type: 'torpedo', lane: 3, from: 'diagonal' } })).toBeNull();
+    expect(ok({ type: 'action', action: { type: 'torpedo', row: 3, from: 'left' } })).toBeNull(); // old shape
     expect(ok({ type: 'outcome', outcome: { hits: [], misses: [], sunk: [{ type: 'carrier', origin: { x: 8, y: 0 }, dir: 'h' }] } })).toBeNull();
     expect(ok({ type: 'ready', commitment: 'xyz', seedCommitment: 'a'.repeat(64) })).toBeNull();
     expect(ok({ type: 'chat', text: '   ' })).toBeNull();

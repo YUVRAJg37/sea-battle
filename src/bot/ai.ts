@@ -1,5 +1,5 @@
 import {
-  AIRSTRIKE_LENGTH, BOARD_SIZE, RADAR_RADIUS, allCells, area, canUseAbility, inBounds, line, opponent, randomFleet, resolveAction, row,
+  AIRSTRIKE_LENGTH, BOARD_SIZE, RADAR_RADIUS, EDGES, allCells, area, canUseAbility, inBounds, lane, line, opponent, randomFleet, resolveAction,
   type Ability, type Action, type Cell, type Dir, type GameState, type PlayerId, type Rng,
 } from '../engine';
 import { THEM, type Opponent } from '../game/match';
@@ -37,10 +37,10 @@ export function chooseAction(state: GameState, me: PlayerId, rng: Rng = Math.ran
   }
   if (ready('salvo') && ranked.length >= 2) return { type: 'salvo', targets: [ranked[0]!, ranked[1]!] };
   if (hunting && ready('torpedo')) {
-    const y = maxBy([...Array(BOARD_SIZE).keys()], (y) => sum(row(y, 'left')));
-    const half = BOARD_SIZE / 2;
-    const left = sum(row(y, 'left').slice(0, half));
-    return { type: 'torpedo', row: y, from: left >= sum(row(y, 'right').slice(0, half)) ? 'left' : 'right' };
+    // Busiest row or column; of its two ends, launch from the one with more heat near it.
+    const lanes = [...Array(BOARD_SIZE).keys()].flatMap((i) => EDGES.map((from) => ({ lane: i, from, cells: lane(i, from) })));
+    const best = maxBy(lanes, (l) => sum(l.cells) + 0.5 * sum(l.cells.slice(0, BOARD_SIZE / 2)));
+    return { type: 'torpedo', lane: best.lane, from: best.from };
   }
   if (hunting && ready('scout')) return { type: 'scout' };
   if (hunting && ready('radar')) return { type: 'radar', center: maxBy(allCells(), (c) => sum(area(c, RADAR_RADIUS))) };

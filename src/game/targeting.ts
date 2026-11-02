@@ -1,12 +1,10 @@
 import {
-  AIRSTRIKE_LENGTH, BOARD_SIZE, RADAR_RADIUS, area, line, row, sameCell,
-  type Ability, type Action, type Cell, type Dir,
+  AIRSTRIKE_LENGTH, BOARD_SIZE, RADAR_RADIUS, area, lane, line, sameCell,
+  type Ability, type Action, type Cell, type Dir, type Edge,
 } from '../engine';
 
 /** What the player has selected to fire: a normal shot or an ability. */
 export type Mode = 'shot' | Ability;
-
-export type Side = 'left' | 'right';
 
 export interface Aim {
   cells: Cell[]; // cells to highlight, in firing order
@@ -17,7 +15,7 @@ export interface Aim {
  * Turns the selected mode and the cell under the pointer into a preview and an action. `dir`
  * orients the airstrike; `side` is the edge the torpedo launches from.
  */
-export function aim(mode: Mode, cell: Cell, dir: Dir, salvoFirst: Cell | null = null, side: Side = 'left'): Aim {
+export function aim(mode: Mode, cell: Cell, dir: Dir, salvoFirst: Cell | null = null, side: Edge = 'left'): Aim {
   switch (mode) {
     case 'shot':
       return { cells: [cell], action: { type: 'shot', target: cell } };
@@ -35,8 +33,11 @@ export function aim(mode: Mode, cell: Cell, dir: Dir, salvoFirst: Cell | null = 
       };
     case 'radar':
       return { cells: area(cell, RADAR_RADIUS), action: { type: 'radar', center: cell } };
-    case 'torpedo':
-      return { cells: row(cell.y, side), action: { type: 'torpedo', row: cell.y, from: side } };
+    case 'torpedo': {
+      // From the left or right it runs along the tapped row; from the top or bottom, down its column.
+      const index = side === 'left' || side === 'right' ? cell.y : cell.x;
+      return { cells: lane(index, side), action: { type: 'torpedo', lane: index, from: side } };
+    }
     case 'scout':
       return { cells: [], action: { type: 'scout' } };
   }

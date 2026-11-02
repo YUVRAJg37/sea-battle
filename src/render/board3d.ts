@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import {
-  BOARD_SIZE, RADAR_RADIUS, SHIPS, area, inBounds, key, shipCells, type Cell, type Fleet, type Marks, type Ship, type ShipType,
+  BOARD_SIZE, RADAR_RADIUS, SHIPS, area, inBounds, key, shipCells, type Cell, type Edge, type Fleet, type Marks, type Ship, type ShipType,
 } from '../engine';
 import { ShipView } from './ships';
 import { THEME } from './theme';
@@ -224,12 +224,13 @@ export class Board3D {
     this.previewBrackets.show(cells, TONES[tone].bracket);
   }
 
-  /** Shows a direction arrow on a cell (a torpedo's launch cell), or hides it with null. */
-  setArrow(cell: Cell | null, pointing: 'left' | 'right' = 'right'): void {
+  /** Shows an arrow on a torpedo's first cell pointing away from the edge it launches from; null hides it. */
+  setArrow(cell: Cell | null, from: Edge = 'left'): void {
     this.arrow.visible = cell !== null;
     if (!cell) return;
     this.arrow.position.copy(local(cell, 0.08));
-    this.arrow.rotation.y = pointing === 'right' ? 0 : Math.PI;
+    // The chevron points along +x; turning it by -90° points it along +z (down the board's rows).
+    this.arrow.rotation.y = { left: 0, right: Math.PI, top: -Math.PI / 2, bottom: Math.PI / 2 }[from];
   }
 
   /** Outlines the cells the latest shot landed on. */

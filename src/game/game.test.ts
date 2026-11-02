@@ -14,11 +14,15 @@ describe('aim', () => {
     expect(aim('salvo', { x: 2, y: 2 }, 'h', a).action).toEqual({ type: 'salvo', targets: [a, { x: 2, y: 2 }] });
   });
 
-  it('launches a torpedo along the tapped row from the chosen side', () => {
-    expect(aim('torpedo', { x: 7, y: 5 }, 'h').action).toEqual({ type: 'torpedo', row: 5, from: 'left' });
+  it('launches a torpedo along the tapped row or column from the chosen edge', () => {
+    expect(aim('torpedo', { x: 7, y: 5 }, 'h').action).toEqual({ type: 'torpedo', lane: 5, from: 'left' });
     const fromRight = aim('torpedo', { x: 2, y: 5 }, 'h', null, 'right');
-    expect(fromRight.action).toEqual({ type: 'torpedo', row: 5, from: 'right' });
+    expect(fromRight.action).toEqual({ type: 'torpedo', lane: 5, from: 'right' });
     expect(fromRight.cells[0]).toEqual({ x: 9, y: 5 }); // preview starts at the launch edge
+    const fromTop = aim('torpedo', { x: 3, y: 8 }, 'h', null, 'top');
+    expect(fromTop.action).toEqual({ type: 'torpedo', lane: 3, from: 'top' });
+    expect(fromTop.cells[0]).toEqual({ x: 3, y: 0 });
+    expect(aim('torpedo', { x: 3, y: 8 }, 'h', null, 'bottom').cells[0]).toEqual({ x: 3, y: 9 });
   });
 
   it('clips radar to the board', () => {

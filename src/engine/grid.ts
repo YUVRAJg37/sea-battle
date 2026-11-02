@@ -43,7 +43,17 @@ export function allCells(): Cell[] {
   return Array.from({ length: BOARD_SIZE * BOARD_SIZE }, (_, i) => ({ x: i % BOARD_SIZE, y: Math.floor(i / BOARD_SIZE) }));
 }
 
-export function row(y: number, from: 'left' | 'right'): Cell[] {
-  const cells = Array.from({ length: BOARD_SIZE }, (_, x) => ({ x, y }));
-  return from === 'left' ? cells : cells.reverse();
+/** A board edge a torpedo can launch from. */
+export type Edge = 'left' | 'right' | 'top' | 'bottom';
+
+export const EDGES: Edge[] = ['left', 'top', 'right', 'bottom'];
+
+/**
+ * A full row (from left or right, `index` is y) or column (from top or bottom, `index` is x),
+ * ordered from the launch edge across the board.
+ */
+export function lane(index: number, from: Edge): Cell[] {
+  const horizontal = from === 'left' || from === 'right';
+  const cells = Array.from({ length: BOARD_SIZE }, (_, i) => (horizontal ? { x: i, y: index } : { x: index, y: i }));
+  return from === 'left' || from === 'top' ? cells : cells.reverse();
 }

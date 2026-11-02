@@ -56,11 +56,21 @@ describe('actions', () => {
   });
 
   it('torpedo stops at the first unhit ship cell', () => {
-    const fromRight = resolveAction(FLEET, {}, { type: 'torpedo', row: 4, from: 'right' });
+    const fromRight = resolveAction(FLEET, {}, { type: 'torpedo', lane: 4, from: 'right' });
     expect(fromRight.hits).toEqual([{ x: 2, y: 4 }]);
     expect(fromRight.misses).toHaveLength(7);
-    const empty = resolveAction(FLEET, {}, { type: 'torpedo', row: 9, from: 'left' });
+    const empty = resolveAction(FLEET, {}, { type: 'torpedo', lane: 9, from: 'left' });
     expect(empty.misses).toHaveLength(10);
+  });
+
+  it('torpedo runs down and up columns', () => {
+    // Column x=5 holds the submarine at rows 6–8.
+    const down = resolveAction(FLEET, {}, { type: 'torpedo', lane: 5, from: 'top' });
+    expect(down.hits).toEqual([{ x: 5, y: 6 }]);
+    expect(down.misses).toHaveLength(6); // rows 0–5 are clear (the carrier ends at x=4)
+    const up = resolveAction(FLEET, {}, { type: 'torpedo', lane: 5, from: 'bottom' });
+    expect(up.hits).toEqual([{ x: 5, y: 8 }]);
+    expect(up.misses).toEqual([{ x: 5, y: 9 }]);
   });
 
   it('radar counts ship cells in a 3x3 area without marking anything', () => {
