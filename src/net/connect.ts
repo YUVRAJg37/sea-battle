@@ -9,9 +9,15 @@ const CONNECT_TIMEOUT_MS = 20_000;
 
 const ROOM_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no I, O, 0 or 1: easy to read out loud
 
-/** Signaling server: set VITE_SIGNAL_URL for deployed builds; local dev uses `npm run dev` in server/. */
+/**
+ * Signaling server. Deployed, it shares the game's address (Caddy routes /room/* to it); in local
+ * dev it's `npm run server` on port 8790. VITE_SIGNAL_URL overrides both.
+ */
 export const SIGNAL_URL: string =
-  import.meta.env.VITE_SIGNAL_URL ?? (['localhost', '127.0.0.1'].includes(location.hostname) ? `ws://${location.hostname}:8787` : '');
+  import.meta.env.VITE_SIGNAL_URL ??
+  (['localhost', '127.0.0.1'].includes(location.hostname)
+    ? `ws://${location.hostname}:8790`
+    : `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}`);
 
 export function newRoomCode(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(6));
@@ -40,8 +46,6 @@ export function connect(
   abort?: AbortSignal,
 ): Promise<{ channel: Channel; role: Role }> {
   return new Promise((resolve, reject) => {
-    if (!SIGNAL_URL) return reject(new ConnectionLost('online play is not set up on this server yet'));
-
     const ws = new WebSocket(`${SIGNAL_URL}/room/${code}`);
     const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
     const pendingIce: RTCIceCandidateInit[] = [];

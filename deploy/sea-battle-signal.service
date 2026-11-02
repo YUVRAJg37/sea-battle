@@ -1,0 +1,21 @@
+[Unit]
+Description=Sea Battle signaling server
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/node /opt/sea-battle/server/index.ts
+WorkingDirectory=/opt/sea-battle/server
+Environment=PORT=8790 NODE_ENV=production
+User=seabattle
+Group=seabattle
+Restart=always
+RestartSec=2
+MemoryMax=150M
+# Nothing to write and no reason to see the rest of the machine.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
