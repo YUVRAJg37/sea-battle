@@ -1,6 +1,7 @@
 // 3D colors for the naval command theme; keep in step with the CSS variables in style.css.
 export const THEME = {
-  skyTop: 0x07121e,
+  skyTop: 0x060e18,
+  skyMid: 0x1f2c47, // dusk blue-violet between the horizon and the top
   horizon: 0x1d3a56,
   sunGlow: 0xff9e5e,
   seaDeep: 0x0b2a42,
@@ -18,5 +19,5 @@ export const THEME = {
   water: 0xe3f2fd,
 } as const;
 
-/** Where the (art-directed) sun sits: low, behind the boards, so its glint reaches the camera. */
-export const SUN_DIRECTION = { x: 0.35, y: 0.3, z: -1 } as const;
+/** Where the (art-directed) sun sits: setting, behind the boards, so its glint reaches the camera. */
+export const SUN_DIRECTION = { x: 0.35, y: 0.12, z: -1 } as const;

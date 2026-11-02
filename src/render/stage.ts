@@ -11,8 +11,11 @@ const VIEW_RADIUS = { landscape: 7.2, portrait: 6.3 }; // half a board plus room
 export interface Stage {
   scene: THREE.Scene;
   onFrame(cb: (dt: number, time: number) => void): void;
-  /** Glide the camera over the point at `x`; `zoom` > 1 pulls back; `pitch` (radians) overrides the layout's tilt. */
-  focusOn(x: number, zoom?: number, pitch?: number): void;
+  /**
+   * Glide the camera to look at (x, z); `zoom` > 1 pulls back, < 1 moves in; `pitch` (radians)
+   * overrides the layout's tilt.
+   */
+  focusOn(x: number, zoom?: number, pitch?: number, z?: number): void;
   /** Shake the camera; strength decays over about half a second. */
   shake(strength: number): void;
   /** Raycaster through the pointer position. */
@@ -30,8 +33,9 @@ export function createStage(canvas: HTMLCanvasElement): Stage {
   sun.position.set(6, 14, 8);
   scene.add(sun);
 
-  const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 200);
-  const lookGoal = new THREE.Vector3(0, 0, 0.6); // slightly toward the camera: the bottom HUD is taller than the top
+  const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 800); // far enough for the sea skirt and sky dome
+  const LOOK_Z = 0.6; // slightly toward the camera: the bottom HUD is taller than the top
+  const lookGoal = new THREE.Vector3(0, 0, LOOK_Z);
   const look = lookGoal.clone();
   const goal = new THREE.Vector3();
   const base = new THREE.Vector3(); // camera position before shake
@@ -83,8 +87,8 @@ export function createStage(canvas: HTMLCanvasElement): Stage {
   return {
     scene,
     onFrame: (cb) => void callbacks.push(cb),
-    focusOn(x, nextZoom = 1, pitch) {
-      lookGoal.x = x;
+    focusOn(x, nextZoom = 1, pitch, z = LOOK_Z) {
+      lookGoal.set(x, 0, z);
       zoom = nextZoom;
       pitchOverride = pitch;
       placeGoal();

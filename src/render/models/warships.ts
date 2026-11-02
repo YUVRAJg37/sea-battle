@@ -189,19 +189,67 @@ function destroyer(p: Palette): Part[] {
 
 function submarine(p: Palette): Part[] {
   const L = SHIPS.submarine.length;
-  return [
+  const deck = 0.12; // top of the casing
+  const casing = 0x5b6875; // lighter than the hull, so the deck reads from above
+  const parts: Part[] = [
     capsule(0.2, L - 0.65, [L / 2, -0.06, 0], p.sub),
-    block([L - 0.8, 0.04, 0.14], [L / 2 + 0.05, 0.1, 0], p.sub),
-    post(0.026, 0.014, [L * 0.35, 0.125, 0], p.trim),
-    post(0.026, 0.014, [L * 0.8, 0.125, 0], p.trim),
-    block([0.44, 0.26, 0.13], [L * 0.64, 0.24, 0], p.sub, 0.78),
-    block([0.11, 0.02, 0.44], [L * 0.66, 0.28, 0], p.sub),
-    post(0.012, 0.18, [L * 0.66, 0.46, 0.02], p.trim, 6),
-    post(0.012, 0.13, [L * 0.62, 0.43, -0.02], p.trim, 6),
-    block([0.18, 0.02, 0.34], [0.26, -0.05, 0], p.sub),
-    block([0.18, 0.3, 0.02], [0.26, -0.05, 0], p.sub),
-    barrel(0.035, 0.04, [0.04, -0.06, 0], 0x9a7b45),
+    ball(0.13, [L - 0.22, -0.05, 0], 0x4a5662), // sonar dome at the bow
+    block([L - 0.8, 0.04, 0.15], [L / 2 + 0.05, deck - 0.02, 0], casing),
+    strip([L - 1.0, 0.004, 0.04], [L / 2 + 0.05, deck + 0.001, 0], 0x262d34), // non-slip walkway
+    deckRing(0.045, [L * 0.33, deck + 0.003, 0], 0x9aa6b2), // hatches
+    deckRing(0.045, [L * 0.84, deck + 0.003, 0], 0x9aa6b2),
   ];
+  // Hull rings where the pressure-hull sections join.
+  for (const f of [0.22, 0.42, 0.78]) {
+    parts.push(paint(new THREE.TorusGeometry(0.201, 0.014, 4, 24).rotateY(Math.PI / 2).translate(L * f, -0.06, 0), 0x1a2026));
+  }
+  // Drain holes along both sides of the casing.
+  for (let x = 0.65; x < L - 0.6; x += 0.16) {
+    for (const z of [-0.077, 0.077]) parts.push(strip([0.06, 0.012, 0.004], [x, deck - 0.025, z], 0x14181c));
+  }
+  // Missile hatches: two rows of three, forward of the tower.
+  for (let i = 0; i < 3; i++) {
+    for (const z of [-0.04, 0.04]) parts.push(strip([0.06, 0.004, 0.05], [L * 0.72 + i * 0.075, deck + 0.002, z], 0x7d8b99));
+  }
+  parts.push(
+    // Tower (sail): planes, a band of windows, masts and navigation lights.
+    block([0.44, 0.26, 0.13], [L * 0.6, deck + 0.13, 0], p.sub, 0.78),
+    block([0.11, 0.02, 0.44], [L * 0.62, deck + 0.17, 0], p.sub),
+    strip([0.012, 0.03, 0.08], [L * 0.6 + 0.17, deck + 0.22, 0], p.window),
+    post(0.012, 0.2, [L * 0.62, deck + 0.36, 0.02], p.trim, 6),
+    post(0.012, 0.14, [L * 0.58, deck + 0.33, -0.02], p.trim, 6),
+    block([0.05, 0.03, 0.03], [L * 0.62, deck + 0.46, 0.02], p.trim),
+    ball(0.02, [L * 0.6 + 0.06, deck + 0.24, -0.055], 0xe0443a), // port: red
+    ball(0.02, [L * 0.6 + 0.06, deck + 0.24, 0.055], 0x3ccf6a), // starboard: green
+    // Stern: cross-shaped control surfaces and a five-bladed propeller.
+    block([0.18, 0.02, 0.36], [0.26, -0.05, 0], p.sub),
+    block([0.18, 0.32, 0.02], [0.26, -0.05, 0], p.sub),
+    barrel(0.035, 0.05, [0.04, -0.06, 0], 0x9a7b45),
+  );
+  for (let i = 0; i < 5; i++) {
+    parts.push(paint(new THREE.BoxGeometry(0.012, 0.11, 0.035).translate(0, 0.055, 0).rotateX((i / 5) * Math.PI * 2).translate(0.05, -0.06, 0), 0x9a7b45));
+  }
+  return parts;
+}
+
+/** Strike fighter for the airstrike, nose along +x, about 0.9 long. */
+function aircraft(p: Palette): Part[] {
+  return [
+    capsule(0.05, 0.62, [0, 0, 0], p.hull),
+    paint(new THREE.ConeGeometry(0.05, 0.14, 10).rotateZ(-Math.PI / 2).translate(0.42, 0, 0), p.hull), // nose
+    ball(0.045, [0.18, 0.045, 0], p.window), // canopy
+    block([0.22, 0.015, 0.62], [-0.04, -0.005, 0], p.hull, 0.35), // swept wings
+    block([0.1, 0.012, 0.26], [-0.3, 0.01, 0], p.hull, 0.4), // tailplanes
+    block([0.12, 0.13, 0.012], [-0.3, 0.07, 0.035], p.hull, 0.45), // twin fins
+    block([0.12, 0.13, 0.012], [-0.3, 0.07, -0.035], p.hull, 0.45),
+    barrel(0.032, 0.05, [-0.41, 0, 0], 0x1a1f24), // exhaust
+  ];
+}
+
+let aircraftCache: THREE.BufferGeometry | null = null;
+
+export function aircraftGeometry(): THREE.BufferGeometry {
+  return (aircraftCache ??= merge(aircraft(palette('naval', 'carrier'))));
 }
 
 const BUILDERS: Record<ShipType, (p: Palette) => Part[]> = { carrier, battleship, cruiser, destroyer, submarine };

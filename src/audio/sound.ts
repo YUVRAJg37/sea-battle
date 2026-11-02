@@ -107,6 +107,18 @@ export class Sound {
     for (let i = 0; i < 6; i++) this.tone('sine', 300 + Math.random() * 500, 200, { duration: 0.06, gain: 0.12, at: i * 0.12 });
   }
 
+  /** A jet passing overhead: engine roar and air rush swelling in and out, with a Doppler drop. */
+  airstrike(): void {
+    this.hiss('bandpass', 500, 2200, { duration: 0.8, gain: 0.55, attack: 0.6 });
+    this.hiss('bandpass', 2200, 400, { duration: 1.0, gain: 0.5, attack: 0.02, at: 0.75 });
+    this.tone('sawtooth', 210, 120, { duration: 1.7, gain: 0.08, attack: 0.7 });
+  }
+
+  /** A bomb's falling whistle. */
+  bomb(): void {
+    this.tone('sine', 1500, 450, { duration: 0.5, gain: 0.12 });
+  }
+
   radar(): void {
     this.tone('sine', 1400, 1350, { duration: 0.9, gain: 0.3 });
     this.tone('sine', 1400, 1350, { duration: 0.7, gain: 0.1, at: 0.28 }); // echo

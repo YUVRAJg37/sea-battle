@@ -190,11 +190,14 @@ async function playRecord(record: TurnRecord) {
   await scene.playTurn(record, byMe);
   shown = match!.state;
   scene.sync(shown, match!.fleet);
-  if (record.outcome.sunk.length) sound.sink();
   // Keep our result on screen above the enemy's reply so it isn't missed.
   const line: LogLine = { text: describeTurn(record, byMe), kind: byMe ? 'mine' : 'enemy' };
   log = byMe ? [line] : [...log.filter((l) => l.kind === 'mine'), line];
   render();
+  if (record.outcome.sunk.length) {
+    sound.sink();
+    await scene.dramatizeSinking(record.outcome.sunk[0]!, byMe);
+  }
 }
 
 function selectMode(next: Mode) {

@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { ParticleSystem } from './particles';
+import { aircraftGeometry } from './models/warships';
+import { outline, toonMaterial } from './shipMaterial';
 import { THEME } from './theme';
 
 const FIRE_INTERVAL = 0.06;
@@ -9,6 +11,8 @@ const shellMat = new THREE.MeshBasicMaterial({ color: 0xffe0a0 });
 const torpedoGeo = new THREE.CapsuleGeometry(0.08, 0.45, 2, 6).rotateZ(Math.PI / 2);
 const torpedoMat = new THREE.MeshStandardMaterial({ color: 0x263238 });
 const ringGeo = new THREE.RingGeometry(0.85, 1, 40).rotateX(-Math.PI / 2);
+const bombGeo = new THREE.CapsuleGeometry(0.05, 0.14, 2, 6);
+const bombMat = new THREE.MeshStandardMaterial({ color: 0x2a323a });
 // Open tapered tube, base at y = 0, for the water column a miss throws up.
 const columnGeo = new THREE.CylinderGeometry(0.1, 0.22, 1, 12, 1, true).translate(0, 0.5, 0);
 
@@ -111,6 +115,38 @@ export class Effects {
     this.scene.remove(mesh);
   }
 
+  /**
+   * A jet flies from `from` to `to`, dropping a bomb on each target as it passes over. `onDrop`
+   * fires as each bomb is released. Resolves when the last bomb lands.
+   */
+  async airstrike(from: THREE.Vector3, to: THREE.Vector3, targets: THREE.Vector3[], onDrop?: () => void): Promise<void> {
+    const geometry = aircraftGeometry();
+    const jet = new THREE.Mesh(geometry, toonMaterial());
+    jet.add(outline(geometry));
+    jet.scale.setScalar(1.6);
+    jet.rotation.y = Math.atan2(-(to.z - from.z), to.x - from.x);
+    this.scene.add(jet);
+
+    const path = to.clone().sub(from);
+    const length = path.length();
+    const dropAt = targets.map((t) => t.clone().sub(from).dot(path) / (length * length)); // 0..1 along the path
+    const bombs: Promise<void>[] = [];
+    let released = 0;
+    await this.animate(1.6, (t) => {
+      jet.position.lerpVectors(from, to, t);
+      jet.rotation.z = Math.sin(t * Math.PI) * 0.08; // slight nose-up as it pulls through
+      this.haze.spawn(jet.position, v3(0, 0, 0), 0xb8c7d4, { life: 0.8, size: 0.12, grow: 2, alpha: 0.3 });
+      while (released < targets.length && t >= dropAt[released]! - 0.12) {
+        bombs.push(this.bomb(jet.position.clone(), targets[released]!));
+        onDrop?.();
+        released++;
+      }
+    });
+    this.scene.remove(jet);
+    (jet.material as THREE.Material).dispose();
+    await Promise.all(bombs);
+  }
+
   /** A torpedo running along the water from `from` to `to`, leaving a wake. */
   async torpedo(from: THREE.Vector3, to: THREE.Vector3): Promise<void> {
     const mesh = new THREE.Mesh(torpedoGeo, torpedoMat);
@@ -119,6 +155,16 @@ export class Effects {
     await this.animate(0.25 + from.distanceTo(to) * 0.12, (t) => {
       mesh.position.lerpVectors(from, to, t);
       this.haze.spawn(mesh.position.clone().setY(0.05), v3(jitter(0.8), 0.3, jitter(0.8)), THEME.water, { life: 0.9, size: 0.18, grow: 1.2, alpha: 0.7, drag: 2 });
+    });
+    this.scene.remove(mesh);
+  }
+
+  private async bomb(from: THREE.Vector3, to: THREE.Vector3): Promise<void> {
+    const mesh = new THREE.Mesh(bombGeo, bombMat);
+    this.scene.add(mesh);
+    await this.animate(0.45, (t) => {
+      mesh.position.lerpVectors(from, to, t);
+      mesh.position.y = from.y + (to.y - from.y) * t * t; // falls faster as it drops
     });
     this.scene.remove(mesh);
   }

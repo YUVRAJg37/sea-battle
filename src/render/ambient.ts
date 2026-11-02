@@ -22,12 +22,13 @@ function softTexture(): THREE.Texture {
 
 function skyDome(sun: THREE.Vector3): THREE.Mesh {
   return new THREE.Mesh(
-    new THREE.SphereGeometry(90, 24, 12),
+    new THREE.SphereGeometry(700, 32, 16), // past the sea skirt (camera far plane is 800)
     new THREE.ShaderMaterial({
       side: THREE.BackSide,
       depthWrite: false,
       uniforms: {
         uTop: { value: new THREE.Color(THEME.skyTop) },
+        uMid: { value: new THREE.Color(THEME.skyMid) },
         uHorizon: { value: new THREE.Color(THEME.horizon) },
         uGlow: { value: new THREE.Color(THEME.sunGlow) },
         uSun: { value: sun },
@@ -35,17 +36,27 @@ function skyDome(sun: THREE.Vector3): THREE.Mesh {
       vertexShader: /* glsl */ `
         varying vec3 vDir;
         void main() {
-          vDir = normalize(position);
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          // Direction from the eye, not the dome's centre, so the sky's horizon lines up with the sea's.
+          vec4 world = modelMatrix * vec4(position, 1.0);
+          vDir = normalize(world.xyz - cameraPosition);
+          gl_Position = projectionMatrix * viewMatrix * world;
         }
       `,
       fragmentShader: /* glsl */ `
-        uniform vec3 uTop, uHorizon, uGlow, uSun;
+        uniform vec3 uTop, uMid, uHorizon, uGlow, uSun;
         varying vec3 vDir;
         void main() {
-          vec3 color = mix(uHorizon, uTop, smoothstep(0.0, 0.5, vDir.y));
-          float glow = pow(max(dot(vDir, uSun), 0.0), 8.0);
-          gl_FragColor = vec4(color + uGlow * glow * 0.45, 1.0);
+          float y = vDir.y;
+          // At and below the horizon the sky is the fog colour, so the sea's far edge melts into it.
+          vec3 color = mix(uHorizon, uMid, smoothstep(0.0, 0.14, y));
+          color = mix(color, uTop, smoothstep(0.14, 0.7, y));
+          // Sunset: a warm band that hugs the horizon, strongest toward the sun.
+          float toward = max(dot(normalize(vDir.xz + 1e-5), normalize(uSun.xz)), 0.0);
+          float band = exp(-max(y, 0.0) * 22.0) * smoothstep(-0.015, 0.005, y);
+          color += uGlow * band * pow(toward, 3.0) * 0.55;
+          // A small halo around the sun itself.
+          color += uGlow * pow(max(dot(vDir, uSun), 0.0), 60.0) * 0.5;
+          gl_FragColor = vec4(color, 1.0);
         }
       `,
     }),
@@ -80,8 +91,9 @@ export function createAmbient(scene: THREE.Scene, sunDirection: THREE.Vector3): 
   const glare = new THREE.Sprite(
     new THREE.SpriteMaterial({ map: soft, color: THEME.sunGlow, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }),
   );
-  glare.position.copy(sun).multiplyScalar(80);
-  glare.scale.setScalar(26);
+  glare.material.opacity = 0.55;
+  glare.position.copy(sun).multiplyScalar(600);
+  glare.scale.setScalar(90);
   scene.add(glare);
 
   const wisps = Array.from({ length: WISPS }, (_, i) => {

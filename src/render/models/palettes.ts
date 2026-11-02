@@ -65,7 +65,7 @@ const NAVAL: Palette = {
   accent: 0xff8a3d,
   marking: 0xffffff,
   flightDeck: 0x3a424a,
-  sub: 0x2a3138,
+  sub: 0x3a4550, // dark, but light enough to read against the sea
 };
 
 const VIVID_HULLS: Record<ShipType, number> = {

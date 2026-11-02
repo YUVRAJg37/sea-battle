@@ -102,7 +102,10 @@ export function createWater(scene: THREE.Scene, sunDirection: THREE.Vector3): (t
   // Dense enough for smooth swells near the boards; fog hides the coarse far edge.
   const mesh = new THREE.Mesh(new THREE.PlaneGeometry(160, 160, 110, 110).rotateX(-Math.PI / 2), material);
   mesh.position.y = WATER_LEVEL;
-  scene.add(mesh);
+  // A coarse skirt underneath carries the sea out to the horizon, so its edge never shows.
+  const skirt = new THREE.Mesh(new THREE.PlaneGeometry(1200, 1200, 6, 6).rotateX(-Math.PI / 2), material);
+  skirt.position.y = WATER_LEVEL - 0.3;
+  scene.add(mesh, skirt);
   return (time) => {
     material.uniforms.uTime!.value = time;
   };

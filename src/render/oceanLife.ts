@@ -114,6 +114,31 @@ function rock(x: number, z: number, size: number): Part {
   return paint(new THREE.IcosahedronGeometry(size, 0).scale(1, 0.55, 0.9).translate(x, size * 0.15, z), 0x5d6670);
 }
 
+const BEAM_LENGTH = 9;
+
+/** Light cone that fades out along its length, so it has no visible end. */
+function beamMaterial(): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide,
+    uniforms: { uColor: { value: new THREE.Color(0xffe7a8) } },
+    vertexShader: /* glsl */ `
+      varying float vAlong;
+      void main() {
+        vAlong = position.x / ${BEAM_LENGTH.toFixed(1)}; // 0 at the lamp, 1 at the far end
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      uniform vec3 uColor;
+      varying float vAlong;
+      void main() { gl_FragColor = vec4(uColor, pow(1.0 - vAlong, 2.0) * 0.16); }
+    `,
+  });
+}
+
 function lighthouseIsland(): { mesh: THREE.Mesh; beam: THREE.Mesh } {
   const tower: Part[] = [
     post(1.8, 0.2, [0, 0.05, 0], 0xd9c79b, 20), // sand
@@ -127,10 +152,7 @@ function lighthouseIsland(): { mesh: THREE.Mesh; beam: THREE.Mesh } {
   for (const y of [0.7, 1.5]) tower.push(post(0.3, 0.3, [0, y, 0], 0xc4372e, 16, 0.27));
   tower.push(post(0.34, 0.06, [0, 2.42, 0], 0x2a3138, 16), post(0.18, 0.3, [0, 2.6, 0], 0xffe7a8, 12), post(0.24, 0.3, [0, 2.9, 0], 0xc4372e, 12, 0.02));
   const mesh = toonMesh(tower);
-  const beam = new THREE.Mesh(
-    new THREE.ConeGeometry(0.9, 9, 16, 1, true).rotateZ(Math.PI / 2).translate(4.5, 0, 0),
-    new THREE.MeshBasicMaterial({ color: 0xffe7a8, transparent: true, opacity: 0.12, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }),
-  );
+  const beam = new THREE.Mesh(new THREE.ConeGeometry(0.9, BEAM_LENGTH, 16, 1, true).rotateZ(Math.PI / 2).translate(BEAM_LENGTH / 2, 0, 0), beamMaterial());
   beam.position.y = 2.6;
   mesh.add(beam);
   return { mesh, beam };

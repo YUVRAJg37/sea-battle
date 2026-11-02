@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { BOARD_SIZE, SHIP_TYPES, type Cell, type Fleet, type GameState, type ShipType, type TurnRecord } from '../engine';
+import { AIRSTRIKE_LENGTH, BOARD_SIZE, SHIP_TYPES, line, shipCells, type Cell, type Fleet, type GameState, type Ship, type ShipType, type TurnRecord } from '../engine';
 import { ME, THEM } from '../game/match';
 import { Board3D } from './board3d';
 import { Effects } from './effects';
@@ -17,13 +17,17 @@ export interface SceneSounds {
   explosion(): void;
   splash(): void;
   torpedo(): void;
+  airstrike(): void;
+  bomb(): void;
   radar(): void;
   scout(): void;
 }
 
 const BOARD_OFFSET = 7; // boards sit at x = ±7
 const OVERVIEW_ZOOM = 1.5;
-const OVERVIEW_PITCH = THREE.MathUtils.degToRad(24);
+const SLOW_MOTION = 0.25; // game speed while a ship sinks
+const SLOW_MOTION_MS = 2200;
+const OVERVIEW_PITCH = THREE.MathUtils.degToRad(13); // low enough that the real horizon and sunset are in view
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Everything 3D: both boards, the sea, effects and the camera. */
@@ -33,6 +37,8 @@ export class SeaScene {
   private readonly stage: Stage;
   private readonly effects: Effects;
   private afloat: ShipType[] = []; // our ships still in the fight, for picking which one fires
+  private timeScale = 1; // < 1 during slow motion; the camera keeps real time
+  private gameTime = 0;
 
   constructor(canvas: HTMLCanvasElement, private readonly sounds?: SceneSounds) {
     this.stage = createStage(canvas);
@@ -43,7 +49,9 @@ export class SeaScene {
     const animateLife = createOceanLife(this.stage.scene, this.effects);
     this.mine = new Board3D(this.stage.scene, -BOARD_OFFSET, THEME.myBoard);
     this.enemy = new Board3D(this.stage.scene, BOARD_OFFSET, THEME.enemyBoard);
-    this.stage.onFrame((dt, t) => {
+    this.stage.onFrame((realDt) => {
+      const dt = realDt * this.timeScale;
+      const t = (this.gameTime += dt);
       animateWater(t);
       animateAmbient(dt, t);
       animateLife(dt, t);
@@ -81,11 +89,11 @@ export class SeaScene {
     const launch = this.launchPoint(byMe);
     const at = (c: Cell, y = 0) => target.cellPosition(c, y);
     target.setLastShot([]);
-    if (action.type !== 'torpedo') {
+    if (action.type === 'torpedo') this.sounds?.torpedo();
+    else if (action.type === 'airstrike') this.sounds?.airstrike();
+    else {
       this.effects.muzzle(launch);
       this.sounds?.cannon();
-    } else {
-      this.sounds?.torpedo();
     }
 
     switch (action.type) {
@@ -93,6 +101,15 @@ export class SeaScene {
         const edge = action.from === 'left' ? -1 : BOARD_SIZE;
         const end = outcome.hits[0] ?? { x: BOARD_SIZE - 1 - edge, y: action.row };
         await this.effects.torpedo(at({ x: edge, y: action.row }, -0.05), at(end, -0.05));
+        break;
+      }
+      case 'airstrike': {
+        // The jet comes in along the strike line from well off the board and leaves the far side.
+        const cells = line(action.origin, action.dir, AIRSTRIKE_LENGTH);
+        const first = at(cells[0]!, 3);
+        const last = at(cells.at(-1)!, 3);
+        const run = last.clone().sub(first).normalize().multiplyScalar(7);
+        await this.effects.airstrike(first.clone().sub(run), last.clone().add(run), cells.map((c) => at(c)), () => this.sounds?.bomb());
         break;
       }
       case 'radar':
@@ -132,6 +149,18 @@ export class SeaScene {
     }
     const board = byMe ? this.mine : this.enemy;
     return board.cellPosition({ x: BOARD_SIZE / 2, y: -2 }, 0.5);
+  }
+
+  /** Slow motion and a push-in on a ship as it goes down, then back to the board. */
+  async dramatizeSinking(ship: Ship, byMe: boolean): Promise<void> {
+    const board = byMe ? this.enemy : this.mine;
+    const cells = shipCells(ship);
+    const at = board.cellPosition(cells[Math.floor(cells.length / 2)]!);
+    this.timeScale = SLOW_MOTION;
+    this.stage.focusOn(at.x, 0.45, THREE.MathUtils.degToRad(38), at.z + 0.5);
+    await sleep(SLOW_MOTION_MS);
+    this.timeScale = 1;
+    this.focus(byMe ? 'enemy' : 'mine');
   }
 
   reset(): void {
