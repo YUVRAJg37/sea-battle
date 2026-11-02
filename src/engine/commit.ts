@@ -49,7 +49,9 @@ export async function verifyDefender(
 const canonicalShip = (s: Ship) => ({ type: s.type, x: s.origin.x, y: s.origin.y, dir: s.dir });
 
 const canonicalFleet = (fleet: Fleet) =>
-  [...fleet].sort((a, b) => PIECE_TYPES.indexOf(a.type) - PIECE_TYPES.indexOf(b.type)).map(canonicalShip);
+  [...fleet]
+    .sort((a, b) => PIECE_TYPES.indexOf(a.type) - PIECE_TYPES.indexOf(b.type) || a.origin.y - b.origin.y || a.origin.x - b.origin.x)
+    .map(canonicalShip);
 
 const canonicalOutcome = (o: Outcome): string =>
   JSON.stringify([o.hits.map(key), o.misses.map(key), canonicalFleet(o.sunk), o.radarCount ?? null]);

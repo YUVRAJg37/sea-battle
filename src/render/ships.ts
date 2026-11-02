@@ -5,22 +5,26 @@ import { outline, toonMaterial } from './shipMaterial';
 
 const SINK_SECONDS = 2.2;
 
-let foamTexture: THREE.Texture | null = null;
+const foamTextures = new Map<boolean, THREE.Texture>();
 
-/** Soft white rounded-rectangle glow, stretched under each hull as a ring of foam. */
-function foam(): THREE.Texture {
-  if (foamTexture) return foamTexture;
+/** Soft white glow drawn as a ring of foam: a rounded rectangle under each hull, a circle round a mine. */
+function foam(round: boolean): THREE.Texture {
+  const cached = foamTextures.get(round);
+  if (cached) return cached;
   const canvas = document.createElement('canvas');
   canvas.width = 256;
-  canvas.height = 64;
+  canvas.height = round ? 256 : 64;
   const ctx = canvas.getContext('2d')!;
   ctx.filter = 'blur(6px)';
   ctx.strokeStyle = 'rgba(230, 245, 255, 0.9)';
   ctx.lineWidth = 8;
   ctx.beginPath();
-  ctx.roundRect(14, 14, 228, 36, 18);
+  if (round) ctx.arc(128, 128, 96, 0, Math.PI * 2);
+  else ctx.roundRect(14, 14, 228, 36, 18);
   ctx.stroke();
-  return (foamTexture = new THREE.CanvasTexture(canvas));
+  const texture = new THREE.CanvasTexture(canvas);
+  foamTextures.set(round, texture);
+  return texture;
 }
 
 /**
@@ -42,8 +46,10 @@ export class ShipView {
     const geometry = warshipGeometry(ship.type, 'naval');
     this.body = new THREE.Mesh(geometry, this.material);
     this.body.add(outline(geometry));
-    this.foamMaterial = new THREE.MeshBasicMaterial({ map: foam(), transparent: true, depthWrite: false });
-    const ring = new THREE.Mesh(new THREE.PlaneGeometry(length + 0.3, BEAM[ship.type] + 0.45).rotateX(-Math.PI / 2), this.foamMaterial);
+    const round = ship.type === 'mine';
+    this.foamMaterial = new THREE.MeshBasicMaterial({ map: foam(round), transparent: true, depthWrite: false });
+    const [w, d] = round ? [0.75, 0.75] : [length + 0.3, BEAM[ship.type] + 0.45];
+    const ring = new THREE.Mesh(new THREE.PlaneGeometry(w, d).rotateX(-Math.PI / 2), this.foamMaterial);
     ring.position.set(length / 2, 0.015, 0);
     this.group.add(this.body, ring);
 

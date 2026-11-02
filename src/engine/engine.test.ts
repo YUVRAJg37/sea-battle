@@ -5,7 +5,7 @@ import {
   type Action, type Edge, type Fleet, type GameState, type PlayerId,
 } from './index';
 
-// Ships along the left of rows 0, 2, 4, a vertical sub at x=5, a vertical destroyer at x=9, the mine at (8, 7).
+// Ships along the left of rows 0, 2, 4, a vertical sub at x=5, a vertical destroyer at x=9, mines at (8, 7) and (7, 2).
 const FLEET: Fleet = [
   { type: 'carrier', origin: { x: 0, y: 0 }, dir: 'h' },
   { type: 'battleship', origin: { x: 0, y: 2 }, dir: 'h' },
@@ -13,6 +13,7 @@ const FLEET: Fleet = [
   { type: 'submarine', origin: { x: 5, y: 6 }, dir: 'v' },
   { type: 'destroyer', origin: { x: 9, y: 0 }, dir: 'v' },
   { type: 'mine', origin: { x: 8, y: 7 }, dir: 'h' },
+  { type: 'mine', origin: { x: 7, y: 2 }, dir: 'h' },
 ];
 
 /** Plays an action against FLEET-vs-FLEET locally, as both peers would. */
@@ -37,6 +38,8 @@ describe('fleet', () => {
     expect(validateFleet(FLEET.slice(1))).toMatch(/number/);
     expect(validateFleet([...FLEET.slice(1), FLEET[1]!])).toMatch(/exactly one carrier/);
     expect(validateFleet(FLEET.filter((s) => s.type !== 'mine'))).toMatch(/number/);
+    expect(validateFleet([...FLEET.slice(0, -1), FLEET[0]!])).toMatch(/exactly one carrier/);
+    expect(validateFleet([...FLEET.slice(0, -1), { type: 'mine', origin: { x: 8, y: 7 }, dir: 'h' }])).toMatch(/overlaps/);
   });
 
   it('randomFleet is always valid', () => {

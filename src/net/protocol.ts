@@ -1,7 +1,7 @@
-import { EDGES, PIECE_TYPES, SHIP_TYPES, inBounds, shipCells, type Action, type Cell, type Edge, type Fleet, type Outcome, type Ship } from '../engine';
+import { EDGES, FLEET_PIECES, PIECE_TYPES, SHIP_TYPES, inBounds, shipCells, type Action, type Cell, type Edge, type Fleet, type Outcome, type Ship } from '../engine';
 
 /** Bumped whenever messages change shape, so mismatched clients refuse each other cleanly. */
-export const PROTOCOL_VERSION = 5;
+export const PROTOCOL_VERSION = 6;
 const MAX_MESSAGE_BYTES = 8 * 1024;
 export const MAX_CHAT_LENGTH = 140;
 
@@ -50,7 +50,7 @@ export function parseMessage(raw: unknown): Message | null {
     case 'outcome':
       return isOutcome(m.outcome) ? { type: 'outcome', outcome: m.outcome } : null;
     case 'reveal':
-      return Array.isArray(m.fleet) && m.fleet.length === PIECE_TYPES.length && m.fleet.every(isShip) && isSalt(m.salt)
+      return Array.isArray(m.fleet) && m.fleet.length === FLEET_PIECES.length && m.fleet.every(isShip) && isSalt(m.salt)
         ? { type: 'reveal', fleet: m.fleet, salt: m.salt }
         : null;
     case 'chat': {

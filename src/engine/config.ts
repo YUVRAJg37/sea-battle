@@ -20,6 +20,9 @@ export type PieceType = ShipType | 'mine';
 export const PIECE_TYPES: PieceType[] = [...SHIP_TYPES, 'mine'];
 export const pieceLength = (type: PieceType): number => (type === 'mine' ? 1 : SHIPS[type].length);
 
+/** What every fleet holds: one of each warship and two mines. */
+export const FLEET_PIECES: PieceType[] = [...SHIP_TYPES, 'mine', 'mine'];
+
 export const AIRSTRIKE_LENGTH = 3;
 export const RADAR_RADIUS = 1; // 3x3 area
 export const RICOCHET_SKIP = 2; // a missed ricochet lands this many cells further on

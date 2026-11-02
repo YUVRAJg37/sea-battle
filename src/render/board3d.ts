@@ -75,6 +75,9 @@ const radarLineMat = new THREE.LineBasicMaterial({ color: THEME.amber });
 /** Cell center in board-local coordinates. */
 const local = (c: Cell, y = 0) => new THREE.Vector3(c.x - HALF + 0.5, y, c.y - HALF + 0.5);
 
+// Warships are one per type; mines are told apart by where they sit.
+const shipId = (s: Ship): string => (s.type === 'mine' ? `mine@${key(s.origin)}` : s.type);
+
 const sameShip = (a: Ship, b: Ship) =>
   a.type === b.type && a.dir === b.dir && a.origin.x === b.origin.x && a.origin.y === b.origin.y;
 
@@ -104,7 +107,7 @@ class TilePool {
 export class Board3D {
   private readonly group = new THREE.Group();
   private readonly surface: THREE.Mesh;
-  private readonly ships = new Map<PieceType, ShipView>();
+  private readonly ships = new Map<string, ShipView>(); // by shipId
   private readonly shipLayer = new THREE.Group();
   private readonly markers = new THREE.Group();
   private readonly marked = new Set<string>();
@@ -148,31 +151,32 @@ export class Board3D {
 
   /** Shows exactly these ships, keeping meshes (and their animations) for ships that didn't move. */
   setShips(fleet: Fleet): void {
-    for (const [type, view] of this.ships) {
+    for (const [id, view] of this.ships) {
       if (!fleet.some((s) => sameShip(s, view.ship))) {
         this.shipLayer.remove(view.group);
         view.dispose();
-        this.ships.delete(type);
+        this.ships.delete(id);
       }
     }
     for (const ship of fleet) {
-      if (this.ships.has(ship.type)) continue;
+      if (this.ships.has(shipId(ship))) continue;
       const view = new ShipView(ship);
-      this.ships.set(ship.type, view);
+      this.ships.set(shipId(ship), view);
       this.shipLayer.add(view.group);
     }
-    this.exposeMine();
+    this.exposeMines();
   }
 
-  /** Once the mine is on show and has been hit, swaps its ember for the mine marker. */
-  private exposeMine(): void {
-    const mine = this.ships.get('mine');
-    if (!mine) return;
-    const k = key(mine.ship.origin);
-    const hitMarks = this.markers.children.filter((m) => m.userData.key === k && m.userData.kind !== 'mine');
-    if (!hitMarks.some((m) => m.userData.kind === 'ember')) return;
-    this.markers.remove(...hitMarks);
-    this.add(Object.assign(new THREE.Mesh(mineGeo, mineMat), { userData: { kind: 'mine', key: k, phase: 0 } }), mine.ship.origin, 0.6);
+  /** Once a mine is on show and has been hit, swaps its ember for the mine marker. */
+  private exposeMines(): void {
+    for (const { ship } of this.ships.values()) {
+      if (ship.type !== 'mine') continue;
+      const k = key(ship.origin);
+      const hitMarks = this.markers.children.filter((m) => m.userData.key === k && m.userData.kind !== 'mine');
+      if (!hitMarks.some((m) => m.userData.kind === 'ember')) continue;
+      this.markers.remove(...hitMarks);
+      this.add(Object.assign(new THREE.Mesh(mineGeo, mineMat), { userData: { kind: 'mine', key: k, phase: 0 } }), ship.origin, 0.6);
+    }
   }
 
   /** World position of a ship's middle at deck height, if it's on this board. */
@@ -215,7 +219,7 @@ export class Board3D {
         this.add(Object.assign(new THREE.Mesh(missGeo, missMat), { userData: { kind: 'miss', phase } }), { x, y }, 0.03);
       }
     }
-    this.exposeMine();
+    this.exposeMines();
   }
 
   /** Outlines the scanned area and floats the ship-cell count above its center. */
