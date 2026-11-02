@@ -12,6 +12,7 @@ const HALF = BOARD_SIZE / 2;
 const emberGeo = new THREE.TorusGeometry(0.2, 0.035, 6, 24).rotateX(Math.PI / 2);
 const emberMat = new THREE.MeshBasicMaterial({ color: 0xff5a3c });
 const scorchGeo = new THREE.PlaneGeometry(0.9, 0.9).rotateX(-Math.PI / 2);
+const arrowMat = new THREE.MeshBasicMaterial({ color: THEME.amber });
 const missGeo = new THREE.TorusGeometry(0.15, 0.04, 6, 20).rotateX(Math.PI / 2);
 const missMat = new THREE.MeshStandardMaterial({ color: THEME.miss, roughness: 0.4 });
 let scorchMat: THREE.MeshBasicMaterial | null = null;
@@ -21,6 +22,10 @@ const tileGeo = new THREE.PlaneGeometry(0.92, 0.92).rotateX(-Math.PI / 2);
 const bracketGeo = cornerBrackets();
 const ringGeo = new THREE.RingGeometry(0.42, 0.46, 4, 1, Math.PI / 4).rotateX(-Math.PI / 2); // thin square outline
 const lastShotMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.6 });
+// Chevron pointing along +x, flat on the board: shows which way a torpedo will run.
+const arrowGeo = new THREE.ShapeGeometry(
+  new THREE.Shape().moveTo(-0.3, -0.32).lineTo(0.32, 0).lineTo(-0.3, 0.32).lineTo(-0.12, 0).closePath(),
+).rotateX(-Math.PI / 2);
 
 /** Target marker colors: amber when aiming, green/red when placing a ship. */
 export type PreviewTone = 'aim' | 'ok' | 'bad';
@@ -106,6 +111,7 @@ export class Board3D {
   private readonly previewFill: TilePool;
   private readonly previewBrackets: TilePool;
   private readonly lastShot: TilePool;
+  private readonly arrow = new THREE.Mesh(arrowGeo, arrowMat);
 
   constructor(scene: THREE.Scene, readonly centerX: number, tint: number) {
     this.group.position.x = centerX;
@@ -120,6 +126,8 @@ export class Board3D {
     this.group.add(this.surface, grid, coordinateLabels(), this.shipLayer, this.markers, this.reticle);
     this.previewFill = new TilePool(this.group, tileGeo, 0.03);
     this.previewBrackets = new TilePool(this.reticle, bracketGeo, 0.06);
+    this.arrow.visible = false;
+    this.reticle.add(this.arrow);
     this.lastShot = new TilePool(this.group, ringGeo, 0.05);
     scene.add(this.group);
   }
@@ -214,6 +222,14 @@ export class Board3D {
   setPreview(cells: Cell[], tone: PreviewTone = 'aim'): void {
     this.previewFill.show(cells, TONES[tone].fill);
     this.previewBrackets.show(cells, TONES[tone].bracket);
+  }
+
+  /** Shows a direction arrow on a cell (a torpedo's launch cell), or hides it with null. */
+  setArrow(cell: Cell | null, pointing: 'left' | 'right' = 'right'): void {
+    this.arrow.visible = cell !== null;
+    if (!cell) return;
+    this.arrow.position.copy(local(cell, 0.08));
+    this.arrow.rotation.y = pointing === 'right' ? 0 : Math.PI;
   }
 
   /** Outlines the cells the latest shot landed on. */

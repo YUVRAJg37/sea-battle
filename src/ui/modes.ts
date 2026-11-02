@@ -27,7 +27,7 @@ export const MODE_INFO: Record<Mode, { label: string; description: string; icon:
   },
   torpedo: {
     label: 'Torpedo',
-    description: 'Runs along a row from the nearer edge and hits the first ship.',
+    description: 'Runs along a row and hits the first ship. Rotate to switch the side it launches from.',
     icon: icon('<rect x="2" y="9" width="15" height="6" rx="3"/><path d="M17 12h3M20 9l2 3-2 3"/>'),
   },
   scout: {

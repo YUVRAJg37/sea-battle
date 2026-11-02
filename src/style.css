@@ -114,9 +114,11 @@ button:focus-visible {
   font-weight: 600;
 }
 
-.btn:hover:not(:disabled) {
-  background: var(--plate-hi);
-  border-top-color: var(--green);
+@media (hover: hover) {
+  .btn:hover:not(:disabled) {
+    background: var(--plate-hi);
+    border-top-color: var(--green);
+  }
 }
 
 .btn.primary {
@@ -126,8 +128,10 @@ button:focus-visible {
   clip-path: polygon(var(--cut) 0, 100% 0, 100% 100%, 0 100%, 0 var(--cut));
 }
 
-.btn.primary:hover:not(:disabled) {
-  background: #ffd57a;
+@media (hover: hover) {
+  .btn.primary:hover:not(:disabled) {
+    background: #ffd57a;
+  }
 }
 
 .btn.primary:disabled {
@@ -187,13 +191,14 @@ button:focus-visible {
   text-align: left;
 }
 
-.menu-item:hover:not(:disabled) {
-  border-left-color: var(--green);
-  background: var(--plate-hi);
+@media (hover: hover) {
+  .menu-item:hover:not(:disabled) {
+    border-left-color: var(--green);
+    background: var(--plate-hi);
+  }
 }
 
-.menu-item.primary,
-.menu-item.primary:hover:not(:disabled) {
+.menu-item.primary {
   border-left: 0;
   background: var(--amber);
   color: var(--amber-ink);
@@ -437,6 +442,7 @@ button:focus-visible {
 
 .side-actions {
   display: flex;
+  flex-wrap: wrap; /* on phones the row is wider than the screen; wrapping keeps Rotate visible */
   justify-content: flex-end;
   gap: 6px;
 }
@@ -494,9 +500,11 @@ button:focus-visible {
   font-weight: 600;
 }
 
-.slot:hover:not(:disabled) {
-  background: var(--plate-hi);
-  border-top-color: var(--green);
+@media (hover: hover) {
+  .slot:hover:not(:disabled) {
+    background: var(--plate-hi);
+    border-top-color: var(--green);
+  }
 }
 
 .slot.active {
@@ -528,17 +536,21 @@ button:focus-visible {
   background: #c99a3a;
 }
 
-/* Amber buttons go dark on hover, with white text so they stay readable. */
-.menu-item.primary:hover:not(:disabled),
-.slot.fire:hover:not(:disabled) {
-  background: var(--plate-hi);
-}
+/* Amber buttons go dark on hover, with white text so they stay readable. Like every hover style
+   here, only on devices that can hover: touch browsers keep a tapped element "hovered" after the
+   finger lifts, which made buttons look stuck. */
+@media (hover: hover) {
+  .menu-item.primary:hover:not(:disabled),
+  .slot.fire:hover:not(:disabled) {
+    background: var(--plate-hi);
+  }
 
-.menu-item.primary:hover:not(:disabled),
-.slot.fire:hover:not(:disabled) svg,
-.slot.fire:hover:not(:disabled) .name,
-.slot.fire:hover:not(:disabled) .key {
-  color: var(--ink);
+  .menu-item.primary:hover:not(:disabled),
+  .slot.fire:hover:not(:disabled) svg,
+  .slot.fire:hover:not(:disabled) .name,
+  .slot.fire:hover:not(:disabled) .key {
+    color: var(--ink);
+  }
 }
 
 .slot:disabled {
@@ -699,8 +711,10 @@ button:focus-visible {
   font: 500 14px var(--body);
 }
 
-.chips button:hover {
-  background: rgba(127, 224, 166, 0.18);
+@media (hover: hover) {
+  .chips button:hover {
+    background: rgba(127, 224, 166, 0.18);
+  }
 }
 
 .chat-form {

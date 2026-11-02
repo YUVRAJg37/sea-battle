@@ -4,7 +4,7 @@ import {
   type Action, type Cell, type Dir, type Fleet, type GameState, type PlayerId, type ShipType, type TurnRecord,
 } from './engine';
 import { Match, ME, THEM } from './game/match';
-import { aim, type Mode } from './game/targeting';
+import { aim, type Mode, type Side } from './game/targeting';
 import { describeTurn } from './game/describe';
 import { statsFor } from './game/stats';
 import { aiBot } from './bot/ai';
@@ -38,7 +38,8 @@ let held: { type: ShipType; dir: Dir } | null = null;
 // Battle
 let match: Match | null = null;
 let mode: Mode = 'shot';
-let dir: Dir = 'h';
+let dir: Dir = 'h'; // airstrike orientation
+let torpedoSide: Side = 'left'; // edge the torpedo launches from
 let salvoFirst: Cell | null = null;
 let busy = false;
 let acting: PlayerId | null = null; // whose turn is animating; the state has already moved on
@@ -99,8 +100,10 @@ function tapPlacing(cell: Cell) {
 // --- Battle ---
 
 function previewAim() {
-  if (!myTurn()) return scene.enemy.setPreview([]);
-  scene.enemy.setPreview(pointed ? aim(mode, pointed, dir, salvoFirst).cells : salvoFirst ? [salvoFirst] : []);
+  const cells = !myTurn() ? [] : pointed ? aim(mode, pointed, dir, salvoFirst, torpedoSide).cells : salvoFirst ? [salvoFirst] : [];
+  scene.enemy.setPreview(cells);
+  // The torpedo's row lights up either way, so an arrow on its first cell shows which way it runs.
+  scene.enemy.setArrow(mode === 'torpedo' && cells.length ? cells[0]! : null, torpedoSide === 'left' ? 'right' : 'left');
 }
 
 function tapBattle(cell: Cell, isMouse: boolean) {
@@ -108,9 +111,13 @@ function tapBattle(cell: Cell, isMouse: boolean) {
   // On touch there's no hover: the first tap aims, tapping the same cell again fires.
   const confirmed = isMouse || (pointed !== null && sameCell(pointed, cell));
   pointed = cell;
-  if (!confirmed) return previewAim();
+  if (!confirmed) {
+    log = hint('Tap the same cell again to fire.');
+    previewAim();
+    return render();
+  }
 
-  const { action } = aim(mode, cell, dir, salvoFirst);
+  const { action } = aim(mode, cell, dir, salvoFirst, torpedoSide);
   if (!action) {
     if (mode === 'salvo' && !salvoFirst) {
       salvoFirst = cell;
@@ -456,7 +463,8 @@ function onButton(act: string) {
         held = { ...held, dir: flip(held.dir) };
         previewPlacement();
       } else if (screen === 'battle') {
-        dir = flip(dir);
+        if (mode === 'torpedo') torpedoSide = torpedoSide === 'left' ? 'right' : 'left';
+        else dir = flip(dir);
         previewAim();
       }
       break;
@@ -524,7 +532,7 @@ function render() {
     log,
     mode,
     canStart: !held && !waitingForPeer && validateFleet(fleet) === null,
-    showRotate: mode === 'airstrike',
+    showRotate: mode === 'airstrike' || mode === 'torpedo',
     viewLabel: view === 'mine' ? 'Enemy grid' : 'My fleet',
     fleets: state && shown ? { mine: fleetStatus(ME), enemy: fleetStatus(THEM) } : null,
     result: state && state.winner !== null ? { won: state.winner === ME, mine: statsFor(state, ME), enemy: statsFor(state, THEM) } : null,
